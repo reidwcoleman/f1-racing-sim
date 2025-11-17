@@ -113,14 +113,14 @@ const wheelGroundContact = new CANNON.ContactMaterial(wheelMaterial, groundMater
 });
 world.addContactMaterial(wheelGroundContact);
 
-// Create Monaco-inspired Circuit
+// Create Monaco-inspired Circuit with full scenery
 function createCircuit() {
-    // Track surface
+    // Track surface with better texture
     const trackGeometry = new THREE.PlaneGeometry(600, 600);
     const trackMaterial = new THREE.MeshStandardMaterial({
-        color: 0x333333,
-        roughness: 0.8,
-        metalness: 0.1
+        color: 0x2a2a2a,
+        roughness: 0.95,
+        metalness: 0.05
     });
     const track = new THREE.Mesh(trackGeometry, trackMaterial);
     track.rotation.x = -Math.PI / 2;
@@ -145,31 +145,91 @@ function createCircuit() {
         points.push(new THREE.Vector3(x, 0, z));
     }
 
-    // Inner barrier
-    const innerCurve = new THREE.CatmullRomCurve3(points);
-    const innerGeometry = new THREE.TubeGeometry(innerCurve, numPoints, 2, 8, true);
-    const barrierMaterial = new THREE.MeshStandardMaterial({
-        color: 0xff0000,
-        roughness: 0.7,
+    // White barrier material with sponsor colors
+    const whiteBarrierMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.6,
+        metalness: 0.2
+    });
+
+    // Red sponsor logo material
+    const redLogoMaterial = new THREE.MeshStandardMaterial({
+        color: 0xe10600,
+        roughness: 0.5,
         metalness: 0.3
     });
-    const innerBarrier = new THREE.Mesh(innerGeometry, barrierMaterial);
+
+    // Blue sponsor logo material
+    const blueLogoMaterial = new THREE.MeshStandardMaterial({
+        color: 0x0066cc,
+        roughness: 0.5,
+        metalness: 0.3
+    });
+
+    // Inner white barriers with logos
+    const innerCurve = new THREE.CatmullRomCurve3(points);
+    const innerGeometry = new THREE.TubeGeometry(innerCurve, numPoints, 3, 8, true);
+    const innerBarrier = new THREE.Mesh(innerGeometry, whiteBarrierMaterial);
+    innerBarrier.position.y = 1.5;
     innerBarrier.castShadow = true;
     scene.add(innerBarrier);
 
-    // Outer barrier
+    // Add sponsor logo panels on inner barrier
+    for (let i = 0; i < numPoints; i += 4) {
+        const t = i / numPoints;
+        const pos = innerCurve.getPoint(t);
+        const tangent = innerCurve.getTangent(t);
+
+        const logoGeometry = new THREE.BoxGeometry(8, 2, 0.2);
+        const logoMaterial = i % 8 === 0 ? redLogoMaterial : blueLogoMaterial;
+        const logo = new THREE.Mesh(logoGeometry, logoMaterial);
+
+        logo.position.set(pos.x, 2, pos.z);
+        logo.lookAt(new THREE.Vector3(0, 2, 0));
+        scene.add(logo);
+    }
+
+    // Outer white barriers with logos
     const outerPoints = points.map(p => new THREE.Vector3(p.x * 1.3, 0, p.z * 1.3));
     const outerCurve = new THREE.CatmullRomCurve3(outerPoints);
-    const outerGeometry = new THREE.TubeGeometry(outerCurve, numPoints, 2, 8, true);
-    const outerBarrier = new THREE.Mesh(outerGeometry, barrierMaterial);
+    const outerGeometry = new THREE.TubeGeometry(outerCurve, numPoints, 3, 8, true);
+    const outerBarrier = new THREE.Mesh(outerGeometry, whiteBarrierMaterial);
+    outerBarrier.position.y = 1.5;
     outerBarrier.castShadow = true;
     scene.add(outerBarrier);
 
+    // Add sponsor logo panels on outer barrier
+    for (let i = 0; i < numPoints; i += 4) {
+        const t = i / numPoints;
+        const pos = outerCurve.getPoint(t);
+        const tangent = outerCurve.getTangent(t);
+
+        const logoGeometry = new THREE.BoxGeometry(8, 2, 0.2);
+        const logoMaterial = i % 8 === 4 ? redLogoMaterial : blueLogoMaterial;
+        const logo = new THREE.Mesh(logoGeometry, logoMaterial);
+
+        logo.position.set(pos.x, 2, pos.z);
+        logo.lookAt(new THREE.Vector3(0, 2, 0));
+        scene.add(logo);
+    }
+
+    // Grandstands with crowds
+    createGrandstands(outerCurve, numPoints);
+
+    // Trees around the circuit
+    createTrees(outerCurve, numPoints);
+
+    // Background buildings (Monaco-style)
+    createBuildings();
+
+    // Mountains in background
+    createMountains();
+
     // Grass around track
-    const grassGeometry = new THREE.PlaneGeometry(800, 800);
+    const grassGeometry = new THREE.PlaneGeometry(1200, 1200);
     const grassMaterial = new THREE.MeshStandardMaterial({
         color: 0x2d5016,
-        roughness: 0.9
+        roughness: 0.95
     });
     const grass = new THREE.Mesh(grassGeometry, grassMaterial);
     grass.rotation.x = -Math.PI / 2;
@@ -177,17 +237,17 @@ function createCircuit() {
     grass.receiveShadow = true;
     scene.add(grass);
 
-    // Start/Finish line
-    const lineGeometry = new THREE.PlaneGeometry(30, 3);
-    const lineMaterial = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        emissive: 0xffffff,
-        emissiveIntensity: 0.2
-    });
-    const startLine = new THREE.Mesh(lineGeometry, lineMaterial);
-    startLine.rotation.x = -Math.PI / 2;
-    startLine.position.set(trackRadius * 1.15, 0.1, 0);
-    scene.add(startLine);
+    // Pit building
+    createPitBuilding();
+
+    // Start/Finish line with checkered pattern
+    createStartFinishLine(trackRadius);
+
+    // Track curbs (red and white)
+    createCurbs(innerCurve, outerCurve, numPoints);
+
+    // Flags and banners
+    createFlags(outerCurve, numPoints);
 
     // Checkpoints for lap detection
     gameState.checkpoints = [
@@ -196,6 +256,295 @@ function createCircuit() {
         { x: -trackRadius * 1.15, z: 0, passed: false },
         { x: 0, z: -trackRadius * 1.15, passed: false }
     ];
+}
+
+// Create grandstands with crowd
+function createGrandstands(curve, numPoints) {
+    const standMaterial = new THREE.MeshStandardMaterial({
+        color: 0x444444,
+        roughness: 0.8
+    });
+
+    const seatMaterial = new THREE.MeshStandardMaterial({
+        color: 0xe10600,
+        roughness: 0.7
+    });
+
+    // Create 8 grandstand sections around the track
+    for (let i = 0; i < 8; i++) {
+        const t = (i / 8) + 0.05;
+        const pos = curve.getPoint(t);
+        const nextPos = curve.getPoint(t + 0.01);
+
+        // Main stand structure
+        const standGeometry = new THREE.BoxGeometry(30, 15, 8);
+        const stand = new THREE.Mesh(standGeometry, standMaterial);
+        stand.position.set(pos.x * 1.15, 7.5, pos.z * 1.15);
+        stand.lookAt(new THREE.Vector3(0, 7.5, 0));
+        stand.castShadow = true;
+        stand.receiveShadow = true;
+        scene.add(stand);
+
+        // Seating tiers
+        for (let tier = 0; tier < 5; tier++) {
+            const seatGeometry = new THREE.BoxGeometry(28, 0.5, 1.5);
+            const seats = new THREE.Mesh(seatGeometry, seatMaterial);
+            seats.position.set(pos.x * 1.16, 2 + tier * 2.5, pos.z * 1.16);
+            seats.lookAt(new THREE.Vector3(0, 2 + tier * 2.5, 0));
+            scene.add(seats);
+
+            // Crowd representation (small boxes)
+            for (let j = 0; j < 40; j++) {
+                const crowdGeometry = new THREE.BoxGeometry(0.6, 1.2, 0.6);
+                const crowdColors = [0xff6600, 0x0066cc, 0xffff00, 0x00ff00, 0xff00ff];
+                const crowdMaterial = new THREE.MeshStandardMaterial({
+                    color: crowdColors[Math.floor(Math.random() * crowdColors.length)],
+                    roughness: 0.9
+                });
+                const person = new THREE.Mesh(crowdGeometry, crowdMaterial);
+
+                const angle = Math.atan2(pos.z, pos.x);
+                const offset = (j - 20) * 0.7;
+                person.position.set(
+                    pos.x * 1.165 + Math.cos(angle + Math.PI/2) * offset,
+                    2.8 + tier * 2.5,
+                    pos.z * 1.165 + Math.sin(angle + Math.PI/2) * offset
+                );
+                scene.add(person);
+            }
+        }
+    }
+}
+
+// Create trees around circuit
+function createTrees(curve, numPoints) {
+    const trunkMaterial = new THREE.MeshStandardMaterial({
+        color: 0x4a3020,
+        roughness: 0.9
+    });
+
+    const foliageMaterial = new THREE.MeshStandardMaterial({
+        color: 0x0a6b0a,
+        roughness: 0.85
+    });
+
+    // Plant trees in clusters
+    for (let i = 0; i < numPoints; i += 3) {
+        const t = i / numPoints;
+        const pos = curve.getPoint(t);
+
+        // Create tree cluster (3-5 trees)
+        const numTrees = 3 + Math.floor(Math.random() * 3);
+        for (let j = 0; j < numTrees; j++) {
+            const offsetX = pos.x * 1.4 + (Math.random() - 0.5) * 20;
+            const offsetZ = pos.z * 1.4 + (Math.random() - 0.5) * 20;
+
+            // Tree trunk
+            const trunkGeometry = new THREE.CylinderGeometry(0.8, 1, 8, 8);
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.position.set(offsetX, 4, offsetZ);
+            trunk.castShadow = true;
+            scene.add(trunk);
+
+            // Tree foliage (3 spheres for fuller look)
+            const foliageGeometry = new THREE.SphereGeometry(4, 8, 8);
+            const foliage1 = new THREE.Mesh(foliageGeometry, foliageMaterial);
+            foliage1.position.set(offsetX, 8, offsetZ);
+            foliage1.castShadow = true;
+            scene.add(foliage1);
+
+            const foliage2 = new THREE.Mesh(new THREE.SphereGeometry(3.5, 8, 8), foliageMaterial);
+            foliage2.position.set(offsetX + 1.5, 9, offsetZ + 1);
+            scene.add(foliage2);
+
+            const foliage3 = new THREE.Mesh(new THREE.SphereGeometry(3, 8, 8), foliageMaterial);
+            foliage3.position.set(offsetX - 1, 8.5, offsetZ - 1);
+            scene.add(foliage3);
+        }
+    }
+}
+
+// Create Monaco-style buildings in background
+function createBuildings() {
+    const buildingColors = [0xcccccc, 0xe8d4a0, 0xffffff, 0xb8a080];
+
+    for (let i = 0; i < 30; i++) {
+        const angle = (i / 30) * Math.PI * 2;
+        const distance = 400 + Math.random() * 200;
+        const x = Math.cos(angle) * distance;
+        const z = Math.sin(angle) * distance;
+
+        const width = 20 + Math.random() * 30;
+        const height = 40 + Math.random() * 80;
+        const depth = 20 + Math.random() * 30;
+
+        const buildingGeometry = new THREE.BoxGeometry(width, height, depth);
+        const buildingMaterial = new THREE.MeshStandardMaterial({
+            color: buildingColors[Math.floor(Math.random() * buildingColors.length)],
+            roughness: 0.7,
+            metalness: 0.2
+        });
+        const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+        building.position.set(x, height / 2, z);
+        building.castShadow = true;
+        building.receiveShadow = true;
+        scene.add(building);
+
+        // Windows
+        const windowGeometry = new THREE.PlaneGeometry(width * 0.8, height * 0.9);
+        const windowMaterial = new THREE.MeshStandardMaterial({
+            color: 0x4488ff,
+            emissive: 0x2244aa,
+            emissiveIntensity: 0.3,
+            roughness: 0.1,
+            metalness: 0.9
+        });
+        const windows = new THREE.Mesh(windowGeometry, windowMaterial);
+        windows.position.set(x, height / 2, z + depth / 2 + 0.1);
+        scene.add(windows);
+    }
+}
+
+// Create mountains in far background
+function createMountains() {
+    const mountainMaterial = new THREE.MeshStandardMaterial({
+        color: 0x6b7a5a,
+        roughness: 0.95,
+        metalness: 0
+    });
+
+    for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2;
+        const distance = 700;
+        const x = Math.cos(angle) * distance;
+        const z = Math.sin(angle) * distance;
+
+        const height = 100 + Math.random() * 150;
+        const width = 80 + Math.random() * 100;
+
+        const mountainGeometry = new THREE.ConeGeometry(width, height, 6);
+        const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial);
+        mountain.position.set(x, height / 2, z);
+        mountain.rotation.y = Math.random() * Math.PI;
+        scene.add(mountain);
+    }
+}
+
+// Create pit building
+function createPitBuilding() {
+    const pitMaterial = new THREE.MeshStandardMaterial({
+        color: 0x333333,
+        roughness: 0.7,
+        metalness: 0.3
+    });
+
+    const pitGeometry = new THREE.BoxGeometry(60, 12, 20);
+    const pitBuilding = new THREE.Mesh(pitGeometry, pitMaterial);
+    pitBuilding.position.set(230, 6, -30);
+    pitBuilding.castShadow = true;
+    pitBuilding.receiveShadow = true;
+    scene.add(pitBuilding);
+
+    // Pit roof
+    const roofGeometry = new THREE.BoxGeometry(62, 0.5, 22);
+    const roofMaterial = new THREE.MeshStandardMaterial({
+        color: 0xe10600,
+        roughness: 0.6
+    });
+    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+    roof.position.set(230, 12.5, -30);
+    scene.add(roof);
+
+    // Pit garages
+    for (let i = 0; i < 10; i++) {
+        const garageDoor = new THREE.Mesh(
+            new THREE.PlaneGeometry(5, 8),
+            new THREE.MeshStandardMaterial({ color: 0x666666 })
+        );
+        garageDoor.position.set(205 + i * 6, 4, -20);
+        garageDoor.rotation.y = Math.PI / 2;
+        scene.add(garageDoor);
+    }
+}
+
+// Create start/finish line
+function createStartFinishLine(trackRadius) {
+    // Checkered pattern
+    const checkerSize = 3;
+    for (let i = 0; i < 10; i++) {
+        for (let j = 0; j < 2; j++) {
+            const isWhite = (i + j) % 2 === 0;
+            const checkerGeometry = new THREE.PlaneGeometry(checkerSize, checkerSize);
+            const checkerMaterial = new THREE.MeshStandardMaterial({
+                color: isWhite ? 0xffffff : 0x000000,
+                emissive: isWhite ? 0xffffff : 0x000000,
+                emissiveIntensity: isWhite ? 0.3 : 0
+            });
+            const checker = new THREE.Mesh(checkerGeometry, checkerMaterial);
+            checker.rotation.x = -Math.PI / 2;
+            checker.position.set(
+                trackRadius * 1.15,
+                0.11,
+                -15 + i * checkerSize + j * checkerSize
+            );
+            scene.add(checker);
+        }
+    }
+}
+
+// Create track curbs (red and white stripes)
+function createCurbs(innerCurve, outerCurve, numPoints) {
+    const redMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+    const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+
+    for (let i = 0; i < numPoints; i += 2) {
+        const t = i / numPoints;
+        const isRed = (i / 2) % 2 === 0;
+
+        // Inner curb
+        const innerPos = innerCurve.getPoint(t);
+        const innerCurbGeometry = new THREE.BoxGeometry(6, 0.3, 1);
+        const innerCurb = new THREE.Mesh(innerCurbGeometry, isRed ? redMaterial : whiteMaterial);
+        innerCurb.position.set(innerPos.x * 0.95, 0.15, innerPos.z * 0.95);
+        innerCurb.lookAt(new THREE.Vector3(0, 0.15, 0));
+        scene.add(innerCurb);
+
+        // Outer curb
+        const outerPos = outerCurve.getPoint(t);
+        const outerCurbGeometry = new THREE.BoxGeometry(6, 0.3, 1);
+        const outerCurb = new THREE.Mesh(outerCurbGeometry, isRed ? redMaterial : whiteMaterial);
+        outerCurb.position.set(outerPos.x * 1.05, 0.15, outerPos.z * 1.05);
+        outerCurb.lookAt(new THREE.Vector3(0, 0.15, 0));
+        scene.add(outerCurb);
+    }
+}
+
+// Create flags and banners
+function createFlags(curve, numPoints) {
+    const flagMaterial = new THREE.MeshStandardMaterial({
+        color: 0xff0000,
+        roughness: 0.8,
+        side: THREE.DoubleSide
+    });
+
+    for (let i = 0; i < 16; i++) {
+        const t = i / 16;
+        const pos = curve.getPoint(t);
+
+        // Flag pole
+        const poleGeometry = new THREE.CylinderGeometry(0.2, 0.2, 15, 8);
+        const poleMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+        const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+        pole.position.set(pos.x * 1.35, 7.5, pos.z * 1.35);
+        scene.add(pole);
+
+        // Flag
+        const flagGeometry = new THREE.PlaneGeometry(4, 2.5);
+        const flag = new THREE.Mesh(flagGeometry, flagMaterial);
+        flag.position.set(pos.x * 1.35, 13, pos.z * 1.35);
+        flag.rotation.y = Math.atan2(pos.z, pos.x) + Math.PI / 2;
+        scene.add(flag);
+    }
 }
 
 // Create Realistic F1 Car
@@ -431,7 +780,7 @@ function createF1Car() {
     });
     chassisBody.addShape(chassisShape);
     chassisBody.position.set(230, 2, 0);
-    chassisBody.linearDamping = 0.01; // Minimal damping for maximum speed
+    chassisBody.linearDamping = 0; // Zero damping for maximum speed
     chassisBody.angularDamping = 0.2;
     world.addBody(chassisBody);
 
@@ -449,15 +798,15 @@ function createF1Car() {
         directionLocal: new CANNON.Vec3(0, -1, 0),
         suspensionStiffness: 50, // Stiffer F1 suspension
         suspensionRestLength: 0.2,
-        frictionSlip: 15, // Maximum grip for acceleration
+        frictionSlip: 50, // Ultra high grip for massive acceleration
         dampingRelaxation: 3,
         dampingCompression: 5,
-        maxSuspensionForce: 150000, // Higher for F1
+        maxSuspensionForce: 500000, // Much higher for F1
         rollInfluence: 0.005, // Minimal roll
         axleLocal: new CANNON.Vec3(-1, 0, 0),
         chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
         maxSuspensionTravel: 0.15, // Limited travel like F1
-        customSlidingRotationalSpeed: -80,
+        customSlidingRotationalSpeed: -30,
         useCustomSlidingRotationalSpeed: true
     };
 
@@ -693,13 +1042,13 @@ function updatePhysics(dt) {
     world.step(dt);
 
     // Advanced engine simulation (tuned for 330 km/h top speed)
-    const maxForce = 80000; // Massive power for proper F1 feel
+    const maxForce = 1200000; // Ultra powerful F1 engine
     const gearRatios = [0, 1.0, 0.95, 0.85, 0.75, 0.65, 0.55, 0.45, 0.35];
     const currentGearRatio = gearRatios[gameState.gear] || 1.0;
 
     // Always provide strong power
-    const baseRPM = Math.max(gameState.rpm, 8000);
-    const rpmFactor = Math.max(0.7, Math.min(1.0, baseRPM / 10000));
+    const baseRPM = Math.max(gameState.rpm, 10000);
+    const rpmFactor = Math.max(0.85, Math.min(1.0, baseRPM / 12000));
 
     let engineForce = controls.currentThrottle * maxForce * rpmFactor * currentGearRatio;
 
@@ -722,7 +1071,7 @@ function updatePhysics(dt) {
     playerCar.vehicle.applyEngineForce(-engineForce, 3);
 
     // Advanced braking with brake balance
-    const brakeForce = controls.currentBrake * 100;
+    const brakeForce = controls.currentBrake * 500;
     const brakeBalance = gameState.carSetup.brakeBalance / 100;
     playerCar.vehicle.setBrake(brakeForce * brakeBalance, 0);
     playerCar.vehicle.setBrake(brakeForce * brakeBalance, 1);
