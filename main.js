@@ -297,8 +297,8 @@ function createF1Car() {
     });
     chassisBody.addShape(chassisShape);
     chassisBody.position.set(230, 2, 0);
-    chassisBody.linearDamping = 0.05; // Lower damping for 330 km/h top speed
-    chassisBody.angularDamping = 0.3;
+    chassisBody.linearDamping = 0.01; // Minimal damping for maximum speed
+    chassisBody.angularDamping = 0.2;
     world.addBody(chassisBody);
 
     // Advanced vehicle with better suspension
@@ -315,7 +315,7 @@ function createF1Car() {
         directionLocal: new CANNON.Vec3(0, -1, 0),
         suspensionStiffness: 50, // Stiffer F1 suspension
         suspensionRestLength: 0.2,
-        frictionSlip: 8, // Better grip
+        frictionSlip: 15, // Maximum grip for acceleration
         dampingRelaxation: 3,
         dampingCompression: 5,
         maxSuspensionForce: 150000, // Higher for F1
@@ -323,7 +323,7 @@ function createF1Car() {
         axleLocal: new CANNON.Vec3(-1, 0, 0),
         chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
         maxSuspensionTravel: 0.15, // Limited travel like F1
-        customSlidingRotationalSpeed: -50,
+        customSlidingRotationalSpeed: -80,
         useCustomSlidingRotationalSpeed: true
     };
 
@@ -563,13 +563,13 @@ function updatePhysics(dt) {
     world.step(dt);
 
     // Advanced engine simulation (tuned for 330 km/h top speed)
-    const maxForce = 35000;
+    const maxForce = 80000; // Massive power for proper F1 feel
     const gearRatios = [0, 1.0, 0.95, 0.85, 0.75, 0.65, 0.55, 0.45, 0.35];
     const currentGearRatio = gearRatios[gameState.gear] || 1.0;
 
-    // Base RPM for idle/low speed to ensure car can move from standstill
-    const baseRPM = Math.max(gameState.rpm, 6000);
-    const rpmFactor = Math.min(1.0, baseRPM / 10000);
+    // Always provide strong power
+    const baseRPM = Math.max(gameState.rpm, 8000);
+    const rpmFactor = Math.max(0.7, Math.min(1.0, baseRPM / 10000));
 
     let engineForce = controls.currentThrottle * maxForce * rpmFactor * currentGearRatio;
 
