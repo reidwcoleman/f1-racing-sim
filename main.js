@@ -394,9 +394,9 @@ function updateHUD() {
 
     // Calculate RPM based on speed and gear
     const maxRPM = 15000;
-    const gearRatios = [0, 0.25, 0.35, 0.5, 0.65, 0.75, 0.85, 0.95, 1.0];
-    const gearRatio = gearRatios[gameState.gear] || 0.25;
-    gameState.rpm = Math.min(maxRPM, (speed / 350) * maxRPM / gearRatio);
+    const gearRatios = [0, 1.0, 0.95, 0.85, 0.75, 0.65, 0.55, 0.45, 0.35];
+    const gearRatio = gearRatios[gameState.gear] || 1.0;
+    gameState.rpm = Math.min(maxRPM, (speed / 330) * maxRPM / gearRatio);
 
     // Update telemetry
     document.getElementById('tel-speed').textContent = Math.round(speed) + ' km/h';
@@ -563,12 +563,12 @@ function updatePhysics(dt) {
     world.step(dt);
 
     // Advanced engine simulation (tuned for 330 km/h top speed)
-    const maxForce = 20000;
-    const gearRatios = [0, 0.25, 0.35, 0.5, 0.65, 0.75, 0.85, 0.95, 1.0];
-    const currentGearRatio = gearRatios[gameState.gear] || 0.25;
+    const maxForce = 35000;
+    const gearRatios = [0, 1.0, 0.95, 0.85, 0.75, 0.65, 0.55, 0.45, 0.35];
+    const currentGearRatio = gearRatios[gameState.gear] || 1.0;
 
     // Base RPM for idle/low speed to ensure car can move from standstill
-    const baseRPM = Math.max(gameState.rpm, 5000);
+    const baseRPM = Math.max(gameState.rpm, 6000);
     const rpmFactor = Math.min(1.0, baseRPM / 10000);
 
     let engineForce = controls.currentThrottle * maxForce * rpmFactor * currentGearRatio;
