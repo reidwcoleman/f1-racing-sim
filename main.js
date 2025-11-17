@@ -297,7 +297,7 @@ function createF1Car() {
     });
     chassisBody.addShape(chassisShape);
     chassisBody.position.set(230, 2, 0);
-    chassisBody.linearDamping = 0.1; // Less damping for more realistic physics
+    chassisBody.linearDamping = 0.05; // Lower damping for 330 km/h top speed
     chassisBody.angularDamping = 0.3;
     world.addBody(chassisBody);
 
@@ -562,8 +562,8 @@ function updatePhysics(dt) {
     // Step physics
     world.step(dt);
 
-    // Advanced engine simulation
-    const maxForce = 15000;
+    // Advanced engine simulation (tuned for 330 km/h top speed)
+    const maxForce = 20000;
     const gearRatios = [0, 0.25, 0.35, 0.5, 0.65, 0.75, 0.85, 0.95, 1.0];
     const currentGearRatio = gearRatios[gameState.gear] || 0.25;
 
