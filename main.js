@@ -366,5 +366,15 @@ class F1RacingGame {
 
 // Start the game when DOM is loaded
 window.addEventListener('DOMContentLoaded', () => {
-    new F1RacingGame();
+    try {
+        console.log('Starting F1 Racing Game...');
+        new F1RacingGame();
+    } catch (error) {
+        console.error('Failed to initialize game:', error);
+        const loadingText = document.getElementById('loading-text');
+        if (loadingText) {
+            loadingText.textContent = `Error: ${error.message}`;
+            loadingText.style.color = '#ff0000';
+        }
+    }
 });
