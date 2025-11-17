@@ -563,10 +563,13 @@ function updatePhysics(dt) {
     world.step(dt);
 
     // Advanced engine simulation
-    const maxForce = 12000;
-    const rpmFactor = Math.min(1.0, gameState.rpm / 10000);
+    const maxForce = 15000;
     const gearRatios = [0, 0.25, 0.35, 0.5, 0.65, 0.75, 0.85, 0.95, 1.0];
     const currentGearRatio = gearRatios[gameState.gear] || 0.25;
+
+    // Base RPM for idle/low speed to ensure car can move from standstill
+    const baseRPM = Math.max(gameState.rpm, 5000);
+    const rpmFactor = Math.min(1.0, baseRPM / 10000);
 
     let engineForce = controls.currentThrottle * maxForce * rpmFactor * currentGearRatio;
 
