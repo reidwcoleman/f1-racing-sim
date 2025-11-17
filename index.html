@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>F1 Racing Simulator</title>
+    <title>Professional F1 Racing Simulator</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏎️</text></svg>">
     <style>
         * {
@@ -13,23 +13,239 @@
         }
 
         body {
-            font-family: 'Arial', sans-serif;
+            font-family: 'Consolas', 'Monaco', monospace;
             background: #000;
             overflow: hidden;
+            color: #fff;
         }
 
-        #gameContainer {
-            position: relative;
+        #canvas-container {
             width: 100vw;
             height: 100vh;
+            position: relative;
         }
 
         canvas {
             display: block;
-            background: #2d5016;
         }
 
-        #startScreen, #gameOverScreen {
+        /* Professional HUD */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Telemetry Dashboard */
+        #telemetry {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #e10600;
+            border-radius: 5px;
+            padding: 15px;
+            min-width: 300px;
+        }
+
+        .telemetry-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .telemetry-label {
+            color: #aaa;
+            font-weight: bold;
+        }
+
+        .telemetry-value {
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+        }
+
+        .telemetry-value.warning {
+            color: #ff0;
+        }
+
+        .telemetry-value.danger {
+            color: #f00;
+        }
+
+        /* Tire Temps */
+        #tire-temps {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #e10600;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .tire-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .tire {
+            text-align: center;
+            padding: 10px;
+            background: #222;
+            border-radius: 5px;
+            border: 2px solid #555;
+        }
+
+        .tire.hot {
+            border-color: #f00;
+            background: #331111;
+        }
+
+        .tire.optimal {
+            border-color: #0f0;
+            background: #113311;
+        }
+
+        /* Lap Times */
+        #lap-times {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #e10600;
+            padding: 15px;
+            border-radius: 5px;
+            min-width: 250px;
+        }
+
+        .lap-time-entry {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid #333;
+        }
+
+        .lap-time-entry.best {
+            background: rgba(255, 215, 0, 0.2);
+            border-color: #ffd700;
+        }
+
+        /* DRS/ERS Indicators */
+        #systems {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #e10600;
+            padding: 15px;
+            border-radius: 5px;
+        }
+
+        .system-indicator {
+            margin: 8px 0;
+            padding: 8px;
+            background: #222;
+            border-radius: 3px;
+            border-left: 4px solid #555;
+        }
+
+        .system-indicator.active {
+            border-left-color: #0f0;
+            background: #113311;
+        }
+
+        .system-indicator.available {
+            border-left-color: #ff0;
+        }
+
+        /* Speedometer */
+        #speedometer {
+            position: absolute;
+            bottom: 150px;
+            right: 20px;
+            text-align: center;
+        }
+
+        #speed {
+            font-size: 60px;
+            font-weight: bold;
+            color: #e10600;
+            text-shadow: 0 0 10px #e10600;
+        }
+
+        #gear {
+            font-size: 40px;
+            color: #fff;
+            margin-top: 10px;
+        }
+
+        /* Setup Menu */
+        #setup-menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            border: 3px solid #e10600;
+            padding: 30px;
+            border-radius: 10px;
+            min-width: 500px;
+            display: none;
+            z-index: 100;
+        }
+
+        #setup-menu h2 {
+            color: #e10600;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 24px;
+        }
+
+        .setup-item {
+            margin: 15px 0;
+        }
+
+        .setup-item label {
+            display: block;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+
+        .setup-item input[type="range"] {
+            width: 100%;
+        }
+
+        .setup-value {
+            float: right;
+            color: #0f0;
+        }
+
+        .btn {
+            background: #e10600;
+            color: #fff;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-weight: bold;
+        }
+
+        .btn:hover {
+            background: #ff0000;
+        }
+
+        /* Start Screen */
+        #start-screen {
             position: absolute;
             top: 0;
             left: 0;
@@ -40,725 +256,197 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            color: white;
-            z-index: 10;
+            z-index: 1000;
         }
 
-        #gameOverScreen {
-            display: none;
-        }
-
-        h1 {
-            font-size: 4rem;
-            background: linear-gradient(45deg, #e10600, #ffffff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 30px;
-            text-transform: uppercase;
-            letter-spacing: 5px;
-        }
-
-        .btn {
-            padding: 20px 50px;
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: white;
-            background: #e10600;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-transform: uppercase;
-            margin: 10px;
-        }
-
-        .btn:hover {
-            background: #ff0000;
-            transform: scale(1.05);
-        }
-
-        #hud {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            right: 20px;
-            display: flex;
-            justify-content: space-between;
-            z-index: 5;
-        }
-
-        .hud-left, .hud-right {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .hud-item {
-            background: rgba(0, 0, 0, 0.8);
-            padding: 10px 20px;
-            border-left: 4px solid #e10600;
-            color: white;
-            font-weight: bold;
-            min-width: 200px;
-        }
-
-        .hud-label {
-            font-size: 0.9rem;
-            color: #aaa;
-        }
-
-        .hud-value {
-            font-size: 2rem;
-            color: #fff;
-        }
-
-        #position {
-            position: absolute;
-            top: 50%;
-            right: 30px;
-            transform: translateY(-50%);
-            background: rgba(0, 0, 0, 0.9);
-            border: 4px solid #e10600;
-            padding: 20px;
-            border-radius: 10px;
-            z-index: 5;
-        }
-
-        #positionValue {
-            font-size: 5rem;
-            font-weight: bold;
+        #start-screen h1 {
+            font-size: 48px;
             color: #e10600;
-            line-height: 1;
+            margin-bottom: 20px;
         }
 
-        #positionLabel {
-            font-size: 1rem;
-            color: #fff;
-            text-align: center;
-        }
-
-        #speedometer {
-            position: absolute;
-            bottom: 30px;
-            right: 30px;
-            width: 200px;
-            height: 200px;
-            background: rgba(0, 0, 0, 0.9);
-            border: 5px solid #e10600;
-            border-radius: 50%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 5;
-        }
-
-        #speedValue {
-            font-size: 4rem;
-            font-weight: bold;
-            color: #e10600;
-        }
-
-        #speedUnit {
-            font-size: 1.2rem;
-            color: #fff;
-            margin-top: -10px;
-        }
-
-        #instructions {
+        .controls {
             margin-top: 30px;
             text-align: center;
-            font-size: 1.2rem;
-            color: #ccc;
-            line-height: 2;
+            line-height: 1.8;
         }
 
         .key {
-            display: inline-block;
-            padding: 8px 15px;
             background: #333;
-            border: 2px solid #e10600;
-            border-radius: 5px;
+            padding: 5px 10px;
+            border-radius: 3px;
+            border: 1px solid #e10600;
             margin: 0 5px;
-            font-weight: bold;
         }
 
-        #minimap {
+        #loading {
             position: absolute;
-            top: 20px;
+            top: 50%;
             left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            border: 3px solid #e10600;
-            border-radius: 10px;
-            padding: 10px;
-            z-index: 5;
-        }
-
-        #minimapCanvas {
-            display: block;
-        }
-
-        #cameraMode {
-            position: absolute;
-            bottom: 250px;
-            right: 30px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 10px 15px;
-            border-left: 4px solid #e10600;
-            color: #fff;
-            font-size: 0.9rem;
-            z-index: 5;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #e10600;
+            display: none;
         }
     </style>
 </head>
 <body>
-    <div id="gameContainer">
-        <canvas id="gameCanvas"></canvas>
+    <div id="canvas-container"></div>
 
-        <div id="hud">
-            <div class="hud-left">
-                <div class="hud-item">
-                    <div class="hud-label">LAP</div>
-                    <div class="hud-value"><span id="currentLap">1</span>/<span id="totalLaps">5</span></div>
+    <div id="hud">
+        <!-- Telemetry Dashboard -->
+        <div id="telemetry">
+            <h3 style="color: #e10600; margin-bottom: 10px;">TELEMETRY</h3>
+            <div class="telemetry-row">
+                <span class="telemetry-label">Speed:</span>
+                <span class="telemetry-value" id="tel-speed">0 km/h</span>
+            </div>
+            <div class="telemetry-row">
+                <span class="telemetry-label">RPM:</span>
+                <span class="telemetry-value" id="tel-rpm">0</span>
+            </div>
+            <div class="telemetry-row">
+                <span class="telemetry-label">Gear:</span>
+                <span class="telemetry-value" id="tel-gear">N</span>
+            </div>
+            <div class="telemetry-row">
+                <span class="telemetry-label">Throttle:</span>
+                <span class="telemetry-value" id="tel-throttle">0%</span>
+            </div>
+            <div class="telemetry-row">
+                <span class="telemetry-label">Brake:</span>
+                <span class="telemetry-value" id="tel-brake">0%</span>
+            </div>
+            <div class="telemetry-row">
+                <span class="telemetry-label">G-Force:</span>
+                <span class="telemetry-value" id="tel-gforce">0.0G</span>
+            </div>
+            <div class="telemetry-row">
+                <span class="telemetry-label">Fuel:</span>
+                <span class="telemetry-value" id="tel-fuel">100kg</span>
+            </div>
+            <div class="telemetry-row">
+                <span class="telemetry-label">Lap:</span>
+                <span class="telemetry-value" id="tel-lap">1 / 10</span>
+            </div>
+        </div>
+
+        <!-- Tire Temperatures -->
+        <div id="tire-temps">
+            <h3 style="color: #e10600; margin-bottom: 5px;">TIRE TEMPS</h3>
+            <div class="tire-grid">
+                <div class="tire" id="tire-fl">
+                    <div>FL</div>
+                    <div id="temp-fl">85°C</div>
                 </div>
-                <div class="hud-item">
-                    <div class="hud-label">LAP TIME</div>
-                    <div class="hud-value" id="lapTime">0:00.000</div>
+                <div class="tire" id="tire-fr">
+                    <div>FR</div>
+                    <div id="temp-fr">85°C</div>
+                </div>
+                <div class="tire" id="tire-rl">
+                    <div>RL</div>
+                    <div id="temp-rl">85°C</div>
+                </div>
+                <div class="tire" id="tire-rr">
+                    <div>RR</div>
+                    <div id="temp-rr">85°C</div>
                 </div>
             </div>
-            <div class="hud-right">
-                <div class="hud-item">
-                    <div class="hud-label">BEST LAP</div>
-                    <div class="hud-value" id="bestLap">--:--.---</div>
-                </div>
+        </div>
+
+        <!-- Lap Times -->
+        <div id="lap-times">
+            <h3 style="color: #e10600; margin-bottom: 10px;">LAP TIMES</h3>
+            <div class="lap-time-entry">
+                <span>Current:</span>
+                <span id="current-time">0:00.000</span>
+            </div>
+            <div class="lap-time-entry best">
+                <span>Best:</span>
+                <span id="best-time">--:--:---</span>
+            </div>
+            <div class="lap-time-entry">
+                <span>Delta:</span>
+                <span id="delta-time">+0.000</span>
+            </div>
+            <div class="lap-time-entry">
+                <span>Position:</span>
+                <span id="position">1st</span>
             </div>
         </div>
 
-        <div id="minimap">
-            <canvas id="minimapCanvas" width="200" height="200"></canvas>
+        <!-- Systems -->
+        <div id="systems">
+            <h3 style="color: #e10600; margin-bottom: 10px;">SYSTEMS</h3>
+            <div class="system-indicator" id="drs-indicator">
+                <strong>DRS:</strong> <span id="drs-status">DISABLED</span>
+            </div>
+            <div class="system-indicator" id="ers-indicator">
+                <strong>ERS:</strong> <span id="ers-level">100%</span>
+            </div>
+            <div class="system-indicator">
+                <strong>Traction:</strong> <span id="tc-level">Medium</span>
+            </div>
         </div>
 
-        <div id="position">
-            <div id="positionValue">1</div>
-            <div id="positionLabel">POSITION</div>
-        </div>
-
+        <!-- Speedometer -->
         <div id="speedometer">
-            <div id="speedValue">0</div>
-            <div id="speedUnit">KM/H</div>
-        </div>
-
-        <div id="cameraMode">FIRST PERSON</div>
-
-        <div id="startScreen">
-            <h1>F1 Racing Simulator</h1>
-            <button class="btn" onclick="startGame()">Start Race</button>
-            <div id="instructions">
-                <p><span class="key">W</span> <span class="key">↑</span> Forward</p>
-                <p><span class="key">S</span> <span class="key">↓</span> Backward</p>
-                <p><span class="key">A</span> <span class="key">←</span> Turn Left</p>
-                <p><span class="key">D</span> <span class="key">→</span> Turn Right</p>
-                <p><span class="key">C</span> Toggle Camera View</p>
-                <p style="margin-top: 20px; color: #e10600; font-size: 1.4rem;">Race against 7 AI opponents for 5 laps!</p>
-            </div>
-        </div>
-
-        <div id="gameOverScreen">
-            <h1 id="raceResult">Race Complete!</h1>
-            <div class="hud-item" style="font-size: 1.5rem; margin: 20px;">
-                <div class="hud-label">FINAL POSITION</div>
-                <div class="hud-value" id="finalPosition">1st</div>
-            </div>
-            <div class="hud-item" style="font-size: 1.5rem; margin: 20px;">
-                <div class="hud-label">BEST LAP</div>
-                <div class="hud-value" id="finalBestLap">--:--.-</div>
-            </div>
-            <button class="btn" onclick="restartGame()">Race Again</button>
+            <div id="speed">0</div>
+            <div style="color: #aaa;">KM/H</div>
+            <div id="gear">N</div>
         </div>
     </div>
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const minimap = document.getElementById('minimapCanvas');
-        const minimapCtx = minimap.getContext('2d');
-
-        // Resize canvas to fill screen
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
-        const TRACK_POINTS = [
-            {x: 400, y: 200}, {x: 600, y: 150}, {x: 900, y: 200}, {x: 1100, y: 350},
-            {x: 1050, y: 600}, {x: 800, y: 750}, {x: 500, y: 700}, {x: 300, y: 550},
-            {x: 200, y: 350}, {x: 300, y: 200}
-        ];
-
-        const TRACK_WIDTH = 120;
-        const AI_COUNT = 7;
-        const CONSTANT_SPEED = 10;
-
-        let gameState = {
-            running: false,
-            cars: [],
-            player: null,
-            keys: {},
-            currentLap: 1,
-            totalLaps: 5,
-            lapStartTime: 0,
-            bestLapTime: null,
-            cameraX: 0,
-            cameraY: 0,
-            firstPerson: true
-        };
-
-        class Car {
-            constructor(isPlayer = false, startOffset = 0) {
-                this.isPlayer = isPlayer;
-                this.x = TRACK_POINTS[0].x + startOffset;
-                this.y = TRACK_POINTS[0].y + (Math.random() - 0.5) * 60;
-                this.angle = Math.PI / 4;
-                this.speed = 0;
-                this.width = 40;
-                this.height = 70;
-                this.color = isPlayer ? '#e10600' : this.randomColor();
-                this.teamColor = isPlayer ? '#ffffff' : this.randomTeamColor();
-                this.currentCheckpoint = 0;
-                this.lapCount = 0;
-                this.aiTarget = 0;
-                this.aiSpeed = CONSTANT_SPEED * (0.8 + Math.random() * 0.3);
-            }
-
-            randomColor() {
-                const colors = ['#0066ff', '#00cc00', '#ffaa00', '#8800ff', '#00ddff', '#ff6600', '#ffffff'];
-                return colors[Math.floor(Math.random() * colors.length)];
-            }
-
-            randomTeamColor() {
-                const colors = ['#000', '#fff', '#444', '#222'];
-                return colors[Math.floor(Math.random() * colors.length)];
-            }
-
-            update() {
-                if (this.isPlayer) {
-                    this.updatePlayer();
-                } else {
-                    this.updateAI();
-                }
-
-                // Move car
-                this.x += Math.cos(this.angle) * this.speed;
-                this.y += Math.sin(this.angle) * this.speed;
-
-                // Check checkpoint
-                this.checkCheckpoint();
-            }
-
-            updatePlayer() {
-                // Simplified arcade controls
-                this.speed = 0;
-
-                if (gameState.keys['ArrowUp'] || gameState.keys['w'] || gameState.keys['W']) {
-                    this.speed = CONSTANT_SPEED;
-                }
-                if (gameState.keys['ArrowDown'] || gameState.keys['s'] || gameState.keys['S']) {
-                    this.speed = -CONSTANT_SPEED * 0.6;
-                }
-
-                // Turning - works even when stationary
-                if (gameState.keys['ArrowLeft'] || gameState.keys['a'] || gameState.keys['A']) {
-                    this.angle -= 0.08;
-                }
-                if (gameState.keys['ArrowRight'] || gameState.keys['d'] || gameState.keys['D']) {
-                    this.angle += 0.08;
-                }
-            }
-
-            updateAI() {
-                // AI follows track points
-                const targetPoint = TRACK_POINTS[this.aiTarget % TRACK_POINTS.length];
-                const dx = targetPoint.x - this.x;
-                const dy = targetPoint.y - this.y;
-                const targetAngle = Math.atan2(dy, dx);
-
-                // Smooth angle adjustment
-                let angleDiff = targetAngle - this.angle;
-                while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-                while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-
-                this.angle += angleDiff * 0.05;
-                this.speed = this.aiSpeed;
-
-                // Move to next waypoint
-                if (Math.sqrt(dx * dx + dy * dy) < 100) {
-                    this.aiTarget++;
-                }
-            }
-
-            checkCheckpoint() {
-                const nextCheckpoint = (this.currentCheckpoint + 1) % TRACK_POINTS.length;
-                const cp = TRACK_POINTS[nextCheckpoint];
-                const dist = Math.sqrt((this.x - cp.x) ** 2 + (this.y - cp.y) ** 2);
-
-                if (dist < 80) {
-                    this.currentCheckpoint = nextCheckpoint;
-
-                    if (nextCheckpoint === 0 && this.currentCheckpoint === 0) {
-                        this.lapCount++;
-                        if (this.isPlayer) {
-                            completeLap();
-                        }
-                    }
-                }
-            }
-
-            drawRealistic(offsetX, offsetY) {
-                ctx.save();
-                ctx.translate(this.x - offsetX, this.y - offsetY);
-                ctx.rotate(this.angle);
-
-                // Shadow
-                ctx.fillStyle = 'rgba(0,0,0,0.4)';
-                ctx.fillRect(-this.width/2 + 3, -this.height/2 + 3, this.width, this.height);
-
-                // Rear wing
-                ctx.fillStyle = '#111';
-                ctx.fillRect(-this.width/2 - 5, this.height/2 - 15, this.width + 10, 3);
-                ctx.fillRect(-this.width/2 - 5, this.height/2 - 23, this.width + 10, 3);
-                ctx.fillStyle = this.color;
-                ctx.fillRect(-this.width/2 - 5, this.height/2 - 20, 3, 8);
-                ctx.fillRect(this.width/2 + 2, this.height/2 - 20, 3, 8);
-
-                // Main body
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.moveTo(-this.width/2, -this.height/2 + 10);
-                ctx.lineTo(-this.width/2, this.height/2 - 10);
-                ctx.lineTo(-this.width/2 + 5, this.height/2);
-                ctx.lineTo(this.width/2 - 5, this.height/2);
-                ctx.lineTo(this.width/2, this.height/2 - 10);
-                ctx.lineTo(this.width/2, -this.height/2 + 10);
-                ctx.lineTo(this.width/2 - 3, -this.height/2);
-                ctx.lineTo(-this.width/2 + 3, -this.height/2);
-                ctx.closePath();
-                ctx.fill();
-
-                // Sidepods
-                ctx.fillStyle = this.color;
-                ctx.fillRect(-this.width/2 - 3, 0, this.width + 6, 25);
-
-                // Engine cover
-                ctx.fillStyle = this.teamColor;
-                ctx.fillRect(-10, -this.height/2 + 12, 20, 25);
-
-                // Halo
-                ctx.strokeStyle = '#444';
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                ctx.arc(0, -this.height/2 + 20, 8, 0, Math.PI, true);
-                ctx.stroke();
-
-                // Cockpit
-                ctx.fillStyle = '#000';
-                ctx.fillRect(-8, -this.height/2 + 15, 16, 20);
-
-                // Racing stripes
-                ctx.fillStyle = this.teamColor;
-                ctx.fillRect(-3, -this.height/2, 6, this.height);
-
-                // Front wing
-                ctx.fillStyle = '#111';
-                ctx.fillRect(-this.width/2 - 6, -this.height/2 - 5, this.width + 12, 2);
-                ctx.fillRect(-this.width/2 - 6, -this.height/2 - 8, this.width + 12, 2);
-                // Wing endplates
-                ctx.fillStyle = this.color;
-                ctx.fillRect(-this.width/2 - 6, -this.height/2 - 10, 3, 10);
-                ctx.fillRect(this.width/2 + 3, -this.height/2 - 10, 3, 10);
-
-                // Wheels
-                ctx.fillStyle = '#000';
-                // Front wheels
-                ctx.fillRect(-this.width/2 - 5, -this.height/2 + 5, 7, 14);
-                ctx.fillRect(this.width/2 - 2, -this.height/2 + 5, 7, 14);
-                // Rear wheels
-                ctx.fillRect(-this.width/2 - 5, this.height/2 - 25, 7, 14);
-                ctx.fillRect(this.width/2 - 2, this.height/2 - 25, 7, 14);
-
-                // Wheel rims
-                ctx.fillStyle = '#444';
-                ctx.fillRect(-this.width/2 - 4, -this.height/2 + 8, 5, 8);
-                ctx.fillRect(this.width/2 - 1, -this.height/2 + 8, 5, 8);
-                ctx.fillRect(-this.width/2 - 4, this.height/2 - 22, 5, 8);
-                ctx.fillRect(this.width/2 - 1, this.height/2 - 22, 5, 8);
-
-                // Brake discs
-                ctx.fillStyle = '#ff6600';
-                ctx.fillRect(-this.width/2 - 3, -this.height/2 + 10, 2, 4);
-                ctx.fillRect(this.width/2, -this.height/2 + 10, 2, 4);
-                ctx.fillRect(-this.width/2 - 3, this.height/2 - 20, 2, 4);
-                ctx.fillRect(this.width/2, this.height/2 - 20, 2, 4);
-
-                // Sponsors/numbers
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 10px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText(this.isPlayer ? '1' : Math.floor(Math.random() * 99), 0, 5);
-
-                ctx.restore();
-            }
-
-            drawMinimap() {
-                const scale = 0.15;
-                const mx = this.x * scale;
-                const my = this.y * scale;
-
-                minimapCtx.fillStyle = this.color;
-                minimapCtx.beginPath();
-                minimapCtx.arc(mx, my, this.isPlayer ? 5 : 3, 0, Math.PI * 2);
-                minimapCtx.fill();
-            }
-        }
-
-        function drawTrack(offsetX, offsetY) {
-            // Draw grass
-            ctx.fillStyle = '#2d5016';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Draw track
-            ctx.strokeStyle = '#3a3a3a';
-            ctx.lineWidth = TRACK_WIDTH;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-
-            ctx.beginPath();
-            for (let i = 0; i < TRACK_POINTS.length; i++) {
-                const p = TRACK_POINTS[i];
-                const method = i === 0 ? 'moveTo' : 'lineTo';
-                ctx[method](p.x - offsetX, p.y - offsetY);
-            }
-            ctx.closePath();
-            ctx.stroke();
-
-            // Draw track borders
-            ctx.strokeStyle = '#ff0000';
-            ctx.lineWidth = 4;
-            ctx.stroke();
-
-            // Draw start/finish line
-            const start = TRACK_POINTS[0];
-            ctx.fillStyle = '#fff';
-            for (let i = 0; i < 10; i++) {
-                ctx.fillStyle = i % 2 === 0 ? '#fff' : '#000';
-                ctx.fillRect(start.x - offsetX - 40, start.y - offsetY - 50 + i * 10, 80, 10);
-            }
-        }
-
-        function drawMinimap() {
-            minimapCtx.fillStyle = '#2d5016';
-            minimapCtx.fillRect(0, 0, 200, 200);
-
-            // Draw track on minimap
-            const scale = 0.15;
-            minimapCtx.strokeStyle = '#666';
-            minimapCtx.lineWidth = 15;
-            minimapCtx.beginPath();
-            TRACK_POINTS.forEach((p, i) => {
-                const method = i === 0 ? 'moveTo' : 'lineTo';
-                minimapCtx[method](p.x * scale, p.y * scale);
-            });
-            minimapCtx.closePath();
-            minimapCtx.stroke();
-
-            // Draw cars on minimap
-            gameState.cars.forEach(car => car.drawMinimap());
-        }
-
-        function drawFirstPersonView() {
-            // Draw car hood at bottom of screen
-            ctx.save();
-            ctx.translate(canvas.width / 2, canvas.height - 100);
-
-            // Hood/nose cone
-            ctx.fillStyle = gameState.player.color;
-            ctx.beginPath();
-            ctx.moveTo(-60, 0);
-            ctx.lineTo(-40, 100);
-            ctx.lineTo(40, 100);
-            ctx.lineTo(60, 0);
-            ctx.closePath();
-            ctx.fill();
-
-            // Hood details
-            ctx.fillStyle = gameState.player.teamColor;
-            ctx.fillRect(-5, 0, 10, 100);
-
-            // Dashboard elements
-            ctx.strokeStyle = '#333';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(-50, 20, 8, 0, Math.PI * 2);
-            ctx.arc(50, 20, 8, 0, Math.PI * 2);
-            ctx.stroke();
-
-            ctx.restore();
-        }
-
-        function updateGame() {
-            if (!gameState.running) return;
-
-            // Update all cars
-            gameState.cars.forEach(car => car.update());
-
-            // Update camera
-            if (gameState.firstPerson) {
-                // First-person camera at driver's seat
-                const offsetDist = 20;
-                gameState.cameraX = gameState.player.x - Math.cos(gameState.player.angle) * offsetDist - canvas.width / 2;
-                gameState.cameraY = gameState.player.y - Math.sin(gameState.player.angle) * offsetDist - canvas.height / 2;
-            } else {
-                // Third-person camera
-                gameState.cameraX = gameState.player.x - canvas.width / 2;
-                gameState.cameraY = gameState.player.y - canvas.height / 2;
-            }
-
-            // Calculate position
-            const sortedCars = [...gameState.cars].sort((a, b) => {
-                if (b.lapCount !== a.lapCount) return b.lapCount - a.lapCount;
-                return b.currentCheckpoint - a.currentCheckpoint;
-            });
-            const position = sortedCars.indexOf(gameState.player) + 1;
-
-            // Update HUD
-            document.getElementById('speedValue').textContent = Math.floor(Math.abs(gameState.player.speed) * 25);
-            document.getElementById('positionValue').textContent = position;
-
-            const currentTime = (Date.now() - gameState.lapStartTime) / 1000;
-            document.getElementById('lapTime').textContent = formatTime(currentTime);
-        }
-
-        function drawGame() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Save context for rotation in first-person
-            if (gameState.firstPerson) {
-                ctx.save();
-                ctx.translate(canvas.width / 2, canvas.height / 2);
-                ctx.rotate(gameState.player.angle - Math.PI / 2);
-                ctx.translate(-canvas.width / 2, -canvas.height / 2);
-            }
-
-            drawTrack(gameState.cameraX, gameState.cameraY);
-
-            // Draw cars
-            const sortedCars = [...gameState.cars].sort((a, b) => a.y - b.y);
-            sortedCars.forEach(car => {
-                if (gameState.firstPerson && car.isPlayer) return; // Don't draw player car in FP view
-                car.drawRealistic(gameState.cameraX, gameState.cameraY);
-            });
-
-            if (gameState.firstPerson) {
-                ctx.restore();
-                drawFirstPersonView();
-            }
-
-            drawMinimap();
-
-            if (gameState.running) {
-                requestAnimationFrame(() => {
-                    updateGame();
-                    drawGame();
-                });
-            }
-        }
-
-        function completeLap() {
-            const lapTime = (Date.now() - gameState.lapStartTime) / 1000;
-
-            if (!gameState.bestLapTime || lapTime < gameState.bestLapTime) {
-                gameState.bestLapTime = lapTime;
-                document.getElementById('bestLap').textContent = formatTime(lapTime);
-            }
-
-            gameState.currentLap++;
-            document.getElementById('currentLap').textContent = gameState.currentLap;
-            gameState.lapStartTime = Date.now();
-
-            if (gameState.currentLap > gameState.totalLaps) {
-                finishRace();
-            }
-        }
-
-        function finishRace() {
-            gameState.running = false;
-
-            const sortedCars = [...gameState.cars].sort((a, b) => {
-                if (b.lapCount !== a.lapCount) return b.lapCount - a.lapCount;
-                return b.currentCheckpoint - a.currentCheckpoint;
-            });
-            const position = sortedCars.indexOf(gameState.player) + 1;
-            const suffix = ['st', 'nd', 'rd'][position - 1] || 'th';
-
-            document.getElementById('raceResult').textContent = position === 1 ? 'Victory!' : 'Race Complete!';
-            document.getElementById('finalPosition').textContent = position + suffix;
-            document.getElementById('finalBestLap').textContent = formatTime(gameState.bestLapTime || 0);
-            document.getElementById('gameOverScreen').style.display = 'flex';
-        }
-
-        function formatTime(seconds) {
-            const mins = Math.floor(seconds / 60);
-            const secs = Math.floor(seconds % 60);
-            const ms = Math.floor((seconds % 1) * 1000);
-            return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
-        }
-
-        function startGame() {
-            document.getElementById('startScreen').style.display = 'none';
-            gameState.running = true;
-            gameState.currentLap = 1;
-            gameState.bestLapTime = null;
-            gameState.lapStartTime = Date.now();
-            gameState.cars = [];
-            gameState.firstPerson = true;
-
-            // Create player
-            gameState.player = new Car(true, 0);
-            gameState.cars.push(gameState.player);
-
-            // Create AI cars
-            for (let i = 0; i < AI_COUNT; i++) {
-                gameState.cars.push(new Car(false, (i + 1) * -50));
-            }
-
-            document.getElementById('currentLap').textContent = '1';
-            document.getElementById('bestLap').textContent = '--:--.-';
-
-            drawGame();
-        }
-
-        function restartGame() {
-            document.getElementById('gameOverScreen').style.display = 'none';
-            startGame();
-        }
-
-        // Keyboard controls
-        document.addEventListener('keydown', (e) => {
-            gameState.keys[e.key] = true;
-
-            // Camera toggle
-            if (e.key === 'c' || e.key === 'C') {
-                gameState.firstPerson = !gameState.firstPerson;
-                document.getElementById('cameraMode').textContent = gameState.firstPerson ? 'FIRST PERSON' : 'THIRD PERSON';
-            }
-        });
-
-        document.addEventListener('keyup', (e) => {
-            gameState.keys[e.key] = false;
-        });
-
-        // Initial draw
-        ctx.fillStyle = '#2d5016';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    </script>
+    <!-- Setup Menu -->
+    <div id="setup-menu">
+        <h2>CAR SETUP</h2>
+        <div class="setup-item">
+            <label>Front Wing: <span class="setup-value" id="fw-value">5</span></label>
+            <input type="range" id="front-wing" min="1" max="11" value="5">
+        </div>
+        <div class="setup-item">
+            <label>Rear Wing: <span class="setup-value" id="rw-value">7</span></label>
+            <input type="range" id="rear-wing" min="1" max="11" value="7">
+        </div>
+        <div class="setup-item">
+            <label>Brake Balance: <span class="setup-value" id="bb-value">50%</span></label>
+            <input type="range" id="brake-balance" min="40" max="60" value="50">
+        </div>
+        <div class="setup-item">
+            <label>Tire Pressure: <span class="setup-value" id="tp-value">23.0 PSI</span></label>
+            <input type="range" id="tire-pressure" min="20" max="25" step="0.5" value="23">
+        </div>
+        <div style="text-align: center; margin-top: 20px;">
+            <button class="btn" onclick="closeSetup()">Close</button>
+            <button class="btn" onclick="resetSetup()">Reset to Default</button>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen">
+        <h1>🏎️ PROFESSIONAL F1 SIMULATOR 🏎️</h1>
+        <p style="font-size: 18px; margin: 20px 0;">Monaco Grand Prix Circuit</p>
+        <button class="btn" style="font-size: 20px; padding: 15px 40px;" onclick="startSimulation()">START SIMULATION</button>
+        <button class="btn" onclick="openSetup()">Car Setup</button>
+
+        <div class="controls">
+            <h3 style="color: #e10600; margin-top: 30px;">CONTROLS</h3>
+            <p><span class="key">W</span> <span class="key">↑</span> Throttle</p>
+            <p><span class="key">S</span> <span class="key">↓</span> Brake</p>
+            <p><span class="key">A</span> <span class="key">←</span> Steer Left</p>
+            <p><span class="key">D</span> <span class="key">→</span> Steer Right</p>
+            <p><span class="key">Shift</span> Shift Up</p>
+            <p><span class="key">Ctrl</span> Shift Down</p>
+            <p><span class="key">Space</span> DRS (when available)</p>
+            <p><span class="key">E</span> ERS Boost</p>
+            <p><span class="key">C</span> Change Camera</p>
+            <p><span class="key">R</span> Reset Car</p>
+            <p style="margin-top: 20px; color: #ffd700;">Professional-grade simulator with realistic physics, telemetry, and F1 systems</p>
+        </div>
+    </div>
+
+    <div id="loading">LOADING SIMULATION...</div>
+
+    <script type="module" src="./main.js"></script>
 </body>
 </html>
