@@ -1,29 +1,20 @@
 {
   "name": "f1-racing-sim",
-  "version": "1.0.0",
-  "description": "Realistic F1 Racing Simulator with advanced graphics",
+  "version": "2.0.0",
+  "description": "F1 Racer Ultra - Arcade-style F1 racing game",
   "main": "index.html",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "deploy": "npm run build && gh-pages -d dist"
+    "deploy": "gh-pages -d ."
   },
   "keywords": [
     "f1",
     "racing",
-    "simulation",
-    "three.js",
+    "arcade",
     "game"
   ],
   "author": "",
   "license": "MIT",
-  "dependencies": {
-    "cannon-es": "^0.20.0",
-    "three": "^0.160.0"
-  },
   "devDependencies": {
-    "gh-pages": "^6.3.0",
-    "vite": "^5.0.0"
+    "gh-pages": "^6.3.0"
   }
 }

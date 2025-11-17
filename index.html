@@ -3,96 +3,389 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>F1 Racing Simulator</title>
+    <title>F1 Racer Ultra</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏎️</text></svg>">
-    <link rel="stylesheet" href="style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial Black', sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.5);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            background: #2a2a3e;
+        }
+
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 10;
+        }
+
+        #gameOverScreen {
+            display: none;
+        }
+
+        h1 {
+            font-size: 4rem;
+            background: linear-gradient(45deg, #ff0000, #ffffff, #ff0000);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.5); }
+        }
+
+        .btn {
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            background: linear-gradient(135deg, #ff0000, #cc0000);
+            border: 3px solid white;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            margin: 10px;
+        }
+
+        .btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.8);
+        }
+
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 1.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            z-index: 5;
+        }
+
+        .stat {
+            margin: 5px 0;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 5px;
+            border-left: 4px solid #ff0000;
+        }
+
+        #instructions {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 1.2rem;
+            color: #ccc;
+        }
+
+        .key {
+            display: inline-block;
+            padding: 5px 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid #ff0000;
+            border-radius: 5px;
+            margin: 0 5px;
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
-    <!-- Loading Screen -->
-    <div id="loading-screen">
-        <div class="loading-content">
-            <h1>F1 RACING SIMULATOR</h1>
-            <div class="loading-bar">
-                <div class="loading-progress" id="loading-progress"></div>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+        <div id="hud">
+            <div class="stat">SPEED: <span id="speedDisplay">0</span> KM/H</div>
+            <div class="stat">SCORE: <span id="scoreDisplay">0</span></div>
+            <div class="stat">DISTANCE: <span id="distanceDisplay">0</span>M</div>
+        </div>
+
+        <div id="startScreen">
+            <h1>🏎️ F1 RACER ULTRA 🏎️</h1>
+            <button class="btn" onclick="startGame()">START RACE</button>
+            <div id="instructions">
+                <p>Use <span class="key">←</span> <span class="key">→</span> to steer</p>
+                <p>Avoid other cars and drive as far as you can!</p>
             </div>
-            <p id="loading-text">Loading assets...</p>
+        </div>
+
+        <div id="gameOverScreen">
+            <h1>RACE OVER!</h1>
+            <div class="stat" style="font-size: 2rem; margin: 20px;">
+                FINAL SCORE: <span id="finalScore">0</span>
+            </div>
+            <button class="btn" onclick="restartGame()">RACE AGAIN</button>
         </div>
     </div>
 
-    <!-- Game Canvas -->
-    <canvas id="game-canvas"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
 
-    <!-- HUD Overlay -->
-    <div id="hud">
-        <!-- Speedometer -->
-        <div class="hud-element speedometer">
-            <div class="speed-display">
-                <span id="speed" class="speed-value">0</span>
-                <span class="speed-unit">KM/H</span>
-            </div>
-            <div class="gear-display">
-                <span id="gear">N</span>
-            </div>
-        </div>
+        let gameState = {
+            running: false,
+            speed: 0,
+            maxSpeed: 300,
+            score: 0,
+            distance: 0,
+            playerX: canvas.width / 2 - 20,
+            playerY: canvas.height - 120,
+            keys: {},
+            cars: [],
+            roadOffset: 0,
+            roadSpeed: 0
+        };
 
-        <!-- RPM Gauge -->
-        <div class="hud-element rpm-gauge">
-            <canvas id="rpm-canvas" width="200" height="100"></canvas>
-        </div>
+        // Road lines
+        let roadLines = [];
+        for (let i = 0; i < 10; i++) {
+            roadLines.push({ y: i * 80 });
+        }
 
-        <!-- Lap Timer -->
-        <div class="hud-element lap-timer">
-            <div class="timer-label">LAP TIME</div>
-            <div id="current-lap-time" class="timer-value">00:00.000</div>
-            <div class="timer-label">BEST LAP</div>
-            <div id="best-lap-time" class="timer-value">--:--.---</div>
-            <div class="lap-counter">
-                LAP <span id="current-lap">1</span> / <span id="total-laps">5</span>
-            </div>
-        </div>
+        // Player car
+        const player = {
+            width: 40,
+            height: 70,
+            color: '#ff0000'
+        };
 
-        <!-- Position Display -->
-        <div class="hud-element position-display">
-            <div class="position-value">P<span id="position">1</span></div>
-            <div class="position-total">/ <span id="total-cars">1</span></div>
-        </div>
+        // Obstacle cars
+        class ObstacleCar {
+            constructor() {
+                this.width = 40;
+                this.height = 70;
+                this.x = Math.random() * (canvas.width - 200) + 100;
+                this.y = -this.height;
+                this.speed = Math.random() * 2 + 1;
+                this.color = ['#0088ff', '#00ff00', '#ffff00', '#ff00ff'][Math.floor(Math.random() * 4)];
+            }
 
-        <!-- Mini Map -->
-        <div class="hud-element mini-map">
-            <canvas id="minimap-canvas" width="150" height="150"></canvas>
-        </div>
+            update() {
+                this.y += this.speed + gameState.roadSpeed;
+            }
 
-        <!-- Controls Help -->
-        <div class="hud-element controls-help">
-            <div class="control-item">↑ / W - Accelerate</div>
-            <div class="control-item">↓ / S - Brake</div>
-            <div class="control-item">← / A - Turn Left</div>
-            <div class="control-item">→ / D - Turn Right</div>
-            <div class="control-item">C - Change Camera</div>
-            <div class="control-item">R - Reset Car</div>
-        </div>
-    </div>
+            draw() {
+                // Car body
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
 
-    <!-- Start Menu -->
-    <div id="start-menu">
-        <div class="menu-content">
-            <h1>F1 RACING SIMULATOR</h1>
-            <button class="menu-button" id="start-race">START RACE</button>
-            <div class="track-select">
-                <label>Track:</label>
-                <select id="track-select">
-                    <option value="monaco">Monaco GP</option>
-                    <option value="silverstone">Silverstone</option>
-                    <option value="spa">Spa-Francorchamps</option>
-                </select>
-            </div>
-            <div class="laps-select">
-                <label>Laps:</label>
-                <input type="number" id="laps-input" min="1" max="20" value="5">
-            </div>
-        </div>
-    </div>
+                // Car details
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.x + 5, this.y + 10, this.width - 10, 20);
+                ctx.fillRect(this.x + 5, this.y + this.height - 30, this.width - 10, 20);
 
-    <script type="module" src="./main.js"></script>
+                // Wheels
+                ctx.fillStyle = '#000';
+                ctx.fillRect(this.x - 3, this.y + 10, 6, 15);
+                ctx.fillRect(this.x + this.width - 3, this.y + 10, 6, 15);
+                ctx.fillRect(this.x - 3, this.y + this.height - 25, 6, 15);
+                ctx.fillRect(this.x + this.width - 3, this.y + this.height - 25, 6, 15);
+            }
+        }
+
+        function drawPlayer() {
+            // Car body
+            ctx.fillStyle = player.color;
+            ctx.fillRect(gameState.playerX, gameState.playerY, player.width, player.height);
+
+            // Racing stripes
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(gameState.playerX + 15, gameState.playerY, 3, player.height);
+            ctx.fillRect(gameState.playerX + 22, gameState.playerY, 3, player.height);
+
+            // Cockpit
+            ctx.fillStyle = '#333';
+            ctx.fillRect(gameState.playerX + 5, gameState.playerY + 20, player.width - 10, 25);
+
+            // Wheels
+            ctx.fillStyle = '#000';
+            ctx.fillRect(gameState.playerX - 3, gameState.playerY + 10, 6, 15);
+            ctx.fillRect(gameState.playerX + player.width - 3, gameState.playerY + 10, 6, 15);
+            ctx.fillRect(gameState.playerX - 3, gameState.playerY + player.height - 25, 6, 15);
+            ctx.fillRect(gameState.playerX + player.width - 3, gameState.playerY + player.height - 25, 6, 15);
+
+            // Speed effect
+            if (gameState.speed > 100) {
+                ctx.strokeStyle = `rgba(255, 0, 0, ${gameState.speed / 300})`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(gameState.playerX, gameState.playerY + player.height);
+                ctx.lineTo(gameState.playerX - 10, gameState.playerY + player.height + 20);
+                ctx.moveTo(gameState.playerX + player.width, gameState.playerY + player.height);
+                ctx.lineTo(gameState.playerX + player.width + 10, gameState.playerY + player.height + 20);
+                ctx.stroke();
+            }
+        }
+
+        function drawRoad() {
+            // Road background
+            ctx.fillStyle = '#444';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grass
+            ctx.fillStyle = '#2d5016';
+            ctx.fillRect(0, 0, 100, canvas.height);
+            ctx.fillRect(canvas.width - 100, 0, 100, canvas.height);
+
+            // Road
+            ctx.fillStyle = '#555';
+            ctx.fillRect(100, 0, canvas.width - 200, canvas.height);
+
+            // Road lines
+            ctx.fillStyle = '#fff';
+            roadLines.forEach(line => {
+                line.y += gameState.roadSpeed;
+                if (line.y > canvas.height) {
+                    line.y = -60;
+                }
+                ctx.fillRect(canvas.width / 2 - 3, line.y, 6, 40);
+            });
+
+            // Side lines
+            ctx.fillStyle = '#ff0';
+            ctx.fillRect(100, 0, 4, canvas.height);
+            ctx.fillRect(canvas.width - 104, 0, 4, canvas.height);
+        }
+
+        function updateGame() {
+            if (!gameState.running) return;
+
+            // Update speed
+            gameState.speed += 0.5;
+            if (gameState.speed > gameState.maxSpeed) {
+                gameState.speed = gameState.maxSpeed;
+            }
+            gameState.roadSpeed = gameState.speed / 20;
+
+            // Update score
+            gameState.score += Math.floor(gameState.speed / 10);
+            gameState.distance += Math.floor(gameState.speed / 100);
+
+            // Player movement
+            if (gameState.keys['ArrowLeft'] && gameState.playerX > 105) {
+                gameState.playerX -= 6;
+            }
+            if (gameState.keys['ArrowRight'] && gameState.playerX < canvas.width - 145) {
+                gameState.playerX += 6;
+            }
+
+            // Spawn obstacles
+            if (Math.random() < 0.02 && gameState.cars.length < 5) {
+                gameState.cars.push(new ObstacleCar());
+            }
+
+            // Update obstacles
+            gameState.cars = gameState.cars.filter(car => {
+                car.update();
+
+                // Check collision
+                if (checkCollision(car)) {
+                    gameOver();
+                    return false;
+                }
+
+                // Remove off-screen cars
+                return car.y < canvas.height + 50;
+            });
+
+            // Update HUD
+            document.getElementById('speedDisplay').textContent = Math.floor(gameState.speed);
+            document.getElementById('scoreDisplay').textContent = gameState.score;
+            document.getElementById('distanceDisplay').textContent = gameState.distance;
+        }
+
+        function checkCollision(car) {
+            return gameState.playerX < car.x + car.width &&
+                   gameState.playerX + player.width > car.x &&
+                   gameState.playerY < car.y + car.height &&
+                   gameState.playerY + player.height > car.y;
+        }
+
+        function drawGame() {
+            drawRoad();
+
+            // Draw obstacles
+            gameState.cars.forEach(car => car.draw());
+
+            // Draw player
+            drawPlayer();
+
+            if (gameState.running) {
+                requestAnimationFrame(() => {
+                    updateGame();
+                    drawGame();
+                });
+            }
+        }
+
+        function startGame() {
+            document.getElementById('startScreen').style.display = 'none';
+            gameState.running = true;
+            gameState.speed = 0;
+            gameState.score = 0;
+            gameState.distance = 0;
+            gameState.playerX = canvas.width / 2 - 20;
+            gameState.cars = [];
+            drawGame();
+        }
+
+        function gameOver() {
+            gameState.running = false;
+            document.getElementById('finalScore').textContent = gameState.score;
+            document.getElementById('gameOverScreen').style.display = 'flex';
+        }
+
+        function restartGame() {
+            document.getElementById('gameOverScreen').style.display = 'none';
+            startGame();
+        }
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            gameState.keys[e.key] = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            gameState.keys[e.key] = false;
+        });
+
+        // Initial draw
+        drawRoad();
+        drawPlayer();
+    </script>
 </body>
 </html>
