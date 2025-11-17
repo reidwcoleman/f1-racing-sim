@@ -17,22 +17,27 @@ const gameState = {
     drsActive: false,
     speed: 0,
     rpm: 0,
-    gear: 0,
+    gear: 1,
     throttle: 0,
     brake: 0,
+    steering: 0,
     tireTempFL: 85,
     tireTempFR: 85,
     tireTempRL: 85,
     tireTempRR: 85,
+    gforce: 0,
     carSetup: {
         frontWing: 5,
         rearWing: 7,
         brakeBalance: 50,
         tirePressure: 23
-    }
+    },
+    prevVelocity: new CANNON.Vec3(),
+    smoothCameraPosition: new THREE.Vector3(),
+    smoothCameraTarget: new THREE.Vector3()
 };
 
-// Controls
+// Controls with smooth interpolation
 const controls = {
     throttle: false,
     brake: false,
@@ -41,7 +46,10 @@ const controls = {
     shiftUp: false,
     shiftDown: false,
     drs: false,
-    ers: false
+    ers: false,
+    currentThrottle: 0,
+    currentBrake: 0,
+    currentSteering: 0
 };
 
 // Scene Setup
@@ -51,16 +59,20 @@ scene.fog = new THREE.Fog(0x87ceeb, 100, 1000);
 
 // Camera
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-let cameraMode = 'chase'; // 'chase' or 'cockpit'
+let cameraMode = 'chase';
 
-// Renderer
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+// Renderer with better quality
+const renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    powerPreference: 'high-performance'
+});
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-// Lighting
+// Enhanced Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
 scene.add(ambientLight);
 
@@ -74,24 +86,32 @@ sunLight.shadow.camera.bottom = -200;
 sunLight.shadow.camera.far = 500;
 sunLight.shadow.mapSize.width = 2048;
 sunLight.shadow.mapSize.height = 2048;
+sunLight.shadow.bias = -0.0001;
 scene.add(sunLight);
 
 const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x545454, 0.5);
 scene.add(hemisphereLight);
 
-// Physics World
+// Physics World with better settings
 const world = new CANNON.World();
 world.gravity.set(0, -30, 0);
 world.broadphase = new CANNON.SAPBroadphase(world);
 world.defaultContactMaterial.friction = 0.3;
 
-// Materials
+// Allow sleeping for better performance
+world.allowSleep = true;
+world.solver.iterations = 15; // More iterations for stability
+world.solver.tolerance = 0.001;
+
+// Materials with realistic properties
 const groundMaterial = new CANNON.Material('ground');
 const wheelMaterial = new CANNON.Material('wheel');
 const wheelGroundContact = new CANNON.ContactMaterial(wheelMaterial, groundMaterial, {
-    friction: 1.5,
-    restitution: 0.1,
-    contactEquationStiffness: 1000
+    friction: 1.8,
+    restitution: 0.05,
+    contactEquationStiffness: 1e8,
+    contactEquationRelaxation: 3,
+    frictionEquationStiffness: 1e8
 });
 world.addContactMaterial(wheelGroundContact);
 
@@ -101,7 +121,8 @@ function createCircuit() {
     const trackGeometry = new THREE.PlaneGeometry(600, 600);
     const trackMaterial = new THREE.MeshStandardMaterial({
         color: 0x333333,
-        roughness: 0.8
+        roughness: 0.8,
+        metalness: 0.1
     });
     const track = new THREE.Mesh(trackGeometry, trackMaterial);
     track.rotation.x = -Math.PI / 2;
@@ -129,7 +150,11 @@ function createCircuit() {
     // Inner barrier
     const innerCurve = new THREE.CatmullRomCurve3(points);
     const innerGeometry = new THREE.TubeGeometry(innerCurve, numPoints, 2, 8, true);
-    const barrierMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+    const barrierMaterial = new THREE.MeshStandardMaterial({
+        color: 0xff0000,
+        roughness: 0.7,
+        metalness: 0.3
+    });
     const innerBarrier = new THREE.Mesh(innerGeometry, barrierMaterial);
     innerBarrier.castShadow = true;
     scene.add(innerBarrier);
@@ -144,7 +169,10 @@ function createCircuit() {
 
     // Grass around track
     const grassGeometry = new THREE.PlaneGeometry(800, 800);
-    const grassMaterial = new THREE.MeshStandardMaterial({ color: 0x2d5016 });
+    const grassMaterial = new THREE.MeshStandardMaterial({
+        color: 0x2d5016,
+        roughness: 0.9
+    });
     const grass = new THREE.Mesh(grassGeometry, grassMaterial);
     grass.rotation.x = -Math.PI / 2;
     grass.position.y = -0.1;
@@ -153,7 +181,11 @@ function createCircuit() {
 
     // Start/Finish line
     const lineGeometry = new THREE.PlaneGeometry(30, 3);
-    const lineMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const lineMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0xffffff,
+        emissiveIntensity: 0.2
+    });
     const startLine = new THREE.Mesh(lineGeometry, lineMaterial);
     startLine.rotation.x = -Math.PI / 2;
     startLine.position.set(trackRadius * 1.15, 0.1, 0);
@@ -161,27 +193,35 @@ function createCircuit() {
 
     // Checkpoints for lap detection
     gameState.checkpoints = [
-        { x: trackRadius * 1.15, z: 0, passed: false }, // Start/Finish
-        { x: 0, z: trackRadius * 1.15, passed: false }, // Checkpoint 1
-        { x: -trackRadius * 1.15, z: 0, passed: false }, // Checkpoint 2
-        { x: 0, z: -trackRadius * 1.15, passed: false } // Checkpoint 3
+        { x: trackRadius * 1.15, z: 0, passed: false },
+        { x: 0, z: trackRadius * 1.15, passed: false },
+        { x: -trackRadius * 1.15, z: 0, passed: false },
+        { x: 0, z: -trackRadius * 1.15, passed: false }
     ];
 }
 
-// Create F1 Car
+// Create Advanced F1 Car
 function createF1Car() {
     const car = new THREE.Group();
 
-    // Main chassis
+    // Main chassis with better detail
     const chassisGeometry = new THREE.BoxGeometry(2, 0.8, 4.5);
-    const chassisMaterial = new THREE.MeshStandardMaterial({ color: 0xe10600 });
+    const chassisMaterial = new THREE.MeshStandardMaterial({
+        color: 0xe10600,
+        metalness: 0.6,
+        roughness: 0.3
+    });
     const chassis = new THREE.Mesh(chassisGeometry, chassisMaterial);
     chassis.castShadow = true;
     car.add(chassis);
 
     // Cockpit
     const cockpitGeometry = new THREE.BoxGeometry(1.5, 0.5, 2);
-    const cockpitMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
+    const cockpitMaterial = new THREE.MeshStandardMaterial({
+        color: 0x000000,
+        metalness: 0.8,
+        roughness: 0.2
+    });
     const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
     cockpit.position.y = 0.6;
     cockpit.position.z = -0.3;
@@ -190,7 +230,11 @@ function createF1Car() {
 
     // Front wing
     const frontWingGeometry = new THREE.BoxGeometry(3, 0.1, 0.5);
-    const wingMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
+    const wingMaterial = new THREE.MeshStandardMaterial({
+        color: 0x000000,
+        metalness: 0.7,
+        roughness: 0.3
+    });
     const frontWing = new THREE.Mesh(frontWingGeometry, wingMaterial);
     frontWing.position.z = 2;
     frontWing.position.y = -0.2;
@@ -205,15 +249,19 @@ function createF1Car() {
     rearWing.castShadow = true;
     car.add(rearWing);
 
-    // Wheels
+    // Wheels with better detail
     const wheelGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 32);
-    const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+    const wheelMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1a1a1a,
+        metalness: 0.5,
+        roughness: 0.7
+    });
 
     const wheelPositions = [
-        { x: -1, z: 1.5 },  // Front left
-        { x: 1, z: 1.5 },   // Front right
-        { x: -1, z: -1.5 }, // Rear left
-        { x: 1, z: -1.5 }   // Rear right
+        { x: -1, z: 1.5 },
+        { x: 1, z: 1.5 },
+        { x: -1, z: -1.5 },
+        { x: 1, z: -1.5 }
     ];
 
     car.wheels = [];
@@ -228,7 +276,11 @@ function createF1Car() {
 
     // Halo
     const haloGeometry = new THREE.TorusGeometry(0.6, 0.05, 16, 32, Math.PI);
-    const haloMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+    const haloMaterial = new THREE.MeshStandardMaterial({
+        color: 0x333333,
+        metalness: 0.8,
+        roughness: 0.2
+    });
     const halo = new THREE.Mesh(haloGeometry, haloMaterial);
     halo.position.y = 0.8;
     halo.position.z = 0;
@@ -237,16 +289,19 @@ function createF1Car() {
 
     scene.add(car);
 
-    // Physics body
+    // Advanced Physics body
     const chassisShape = new CANNON.Box(new CANNON.Vec3(1, 0.4, 2.25));
-    const chassisBody = new CANNON.Body({ mass: 740 }); // F1 car minimum weight
+    const chassisBody = new CANNON.Body({
+        mass: 740,
+        material: new CANNON.Material()
+    });
     chassisBody.addShape(chassisShape);
     chassisBody.position.set(230, 2, 0);
-    chassisBody.linearDamping = 0.3;
-    chassisBody.angularDamping = 0.5;
+    chassisBody.linearDamping = 0.1; // Less damping for more realistic physics
+    chassisBody.angularDamping = 0.3;
     world.addBody(chassisBody);
 
-    // Vehicle setup
+    // Advanced vehicle with better suspension
     const vehicle = new CANNON.RaycastVehicle({
         chassisBody: chassisBody,
         indexRightAxis: 0,
@@ -254,23 +309,25 @@ function createF1Car() {
         indexForwardAxis: 2
     });
 
+    // Advanced suspension settings
     const wheelOptions = {
         radius: 0.4,
         directionLocal: new CANNON.Vec3(0, -1, 0),
-        suspensionStiffness: 30,
-        suspensionRestLength: 0.3,
-        frictionSlip: 5,
-        dampingRelaxation: 2.3,
-        dampingCompression: 4.4,
-        maxSuspensionForce: 100000,
-        rollInfluence: 0.01,
+        suspensionStiffness: 50, // Stiffer F1 suspension
+        suspensionRestLength: 0.2,
+        frictionSlip: 8, // Better grip
+        dampingRelaxation: 3,
+        dampingCompression: 5,
+        maxSuspensionForce: 150000, // Higher for F1
+        rollInfluence: 0.005, // Minimal roll
         axleLocal: new CANNON.Vec3(-1, 0, 0),
         chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-        maxSuspensionTravel: 0.3,
-        customSlidingRotationalSpeed: -30,
+        maxSuspensionTravel: 0.15, // Limited travel like F1
+        customSlidingRotationalSpeed: -50,
         useCustomSlidingRotationalSpeed: true
     };
 
+    // Add wheels
     wheelOptions.chassisConnectionPointLocal.set(-1, 0, 1.5);
     vehicle.addWheel(wheelOptions);
 
@@ -322,36 +379,46 @@ document.addEventListener('keyup', (e) => {
     if (e.key === 'e' || e.key === 'E') controls.ers = false;
 });
 
-// Update HUD
+// Update HUD with G-force
 function updateHUD() {
     const velocity = playerCar.body.velocity;
     const speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z) * 3.6;
     gameState.speed = speed;
 
+    // Calculate G-force
+    const deltaV = new CANNON.Vec3();
+    deltaV.copy(velocity).vsub(gameState.prevVelocity);
+    const gforce = deltaV.length() / (1/60) / 9.81; // Convert to G's
+    gameState.gforce = gforce;
+    gameState.prevVelocity.copy(velocity);
+
     // Calculate RPM based on speed and gear
     const maxRPM = 15000;
-    const gearRatios = [0, 0.3, 0.45, 0.6, 0.75, 0.85, 0.95, 1.0];
-    gameState.rpm = Math.min(maxRPM, (speed / 350) * maxRPM * (gearRatios[gameState.gear] || 1));
+    const gearRatios = [0, 0.25, 0.35, 0.5, 0.65, 0.75, 0.85, 0.95, 1.0];
+    const gearRatio = gearRatios[gameState.gear] || 0.25;
+    gameState.rpm = Math.min(maxRPM, (speed / 350) * maxRPM / gearRatio);
 
     // Update telemetry
     document.getElementById('tel-speed').textContent = Math.round(speed) + ' km/h';
     document.getElementById('tel-rpm').textContent = Math.round(gameState.rpm);
-    document.getElementById('tel-gear').textContent = gameState.gear === 0 ? 'N' : gameState.gear;
-    document.getElementById('tel-throttle').textContent = Math.round(gameState.throttle * 100) + '%';
-    document.getElementById('tel-brake').textContent = Math.round(gameState.brake * 100) + '%';
+    document.getElementById('tel-gear').textContent = gameState.gear;
+    document.getElementById('tel-throttle').textContent = Math.round(controls.currentThrottle * 100) + '%';
+    document.getElementById('tel-brake').textContent = Math.round(controls.currentBrake * 100) + '%';
+    document.getElementById('tel-gforce').textContent = gforce.toFixed(2) + 'G';
     document.getElementById('tel-fuel').textContent = Math.round(gameState.fuel) + 'kg';
     document.getElementById('tel-lap').textContent = gameState.currentLap + ' / ' + gameState.totalLaps;
 
     // Speedometer
     document.getElementById('speed').textContent = Math.round(speed);
-    document.getElementById('gear').textContent = gameState.gear === 0 ? 'N' : gameState.gear;
+    document.getElementById('gear').textContent = gameState.gear;
 
-    // Tire temps (increase with speed)
-    const tempIncrease = speed * 0.05;
-    gameState.tireTempFL = Math.min(120, 85 + tempIncrease + Math.random() * 5);
-    gameState.tireTempFR = Math.min(120, 85 + tempIncrease + Math.random() * 5);
-    gameState.tireTempRL = Math.min(120, 85 + tempIncrease + Math.random() * 5);
-    gameState.tireTempRR = Math.min(120, 85 + tempIncrease + Math.random() * 5);
+    // Realistic tire temps based on speed and cornering
+    const baseTempIncrease = speed * 0.04;
+    const corneringLoad = Math.abs(controls.currentSteering) * 10;
+    gameState.tireTempFL = Math.min(120, 85 + baseTempIncrease + corneringLoad + Math.random() * 3);
+    gameState.tireTempFR = Math.min(120, 85 + baseTempIncrease + corneringLoad + Math.random() * 3);
+    gameState.tireTempRL = Math.min(120, 85 + baseTempIncrease + corneringLoad * 0.8 + Math.random() * 3);
+    gameState.tireTempRR = Math.min(120, 85 + baseTempIncrease + corneringLoad * 0.8 + Math.random() * 3);
 
     updateTireDisplay('fl', gameState.tireTempFL);
     updateTireDisplay('fr', gameState.tireTempFR);
@@ -383,9 +450,9 @@ function updateHUD() {
 function updateTireDisplay(tire, temp) {
     document.getElementById('temp-' + tire).textContent = Math.round(temp) + '°C';
     const tireElement = document.getElementById('tire-' + tire);
-    if (temp > 100) {
+    if (temp > 105) {
         tireElement.className = 'tire hot';
-    } else if (temp > 90 && temp < 100) {
+    } else if (temp >= 95 && temp <= 105) {
         tireElement.className = 'tire optimal';
     } else {
         tireElement.className = 'tire';
@@ -412,14 +479,12 @@ function checkLapCompletion() {
         if (dist < 20 && !checkpoint.passed) {
             checkpoint.passed = true;
 
-            // Check if all checkpoints passed
             if (gameState.checkpoints.every(cp => cp.passed)) {
                 completeLap();
             }
         }
     });
 
-    // DRS zone (on straight near start/finish)
     gameState.drsAvailable = Math.abs(carPos.x - 230) < 50 && Math.abs(carPos.z) < 30;
 }
 
@@ -442,88 +507,35 @@ function completeLap() {
     }
 }
 
-// Animation loop
-function animate() {
+// Fixed timestep animation loop
+const fixedTimeStep = 1 / 60;
+let lastTime = 0;
+let accumulator = 0;
+
+function animate(currentTime) {
     requestAnimationFrame(animate);
 
+    if (!lastTime) lastTime = currentTime;
+    const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1);
+    lastTime = currentTime;
+    accumulator += deltaTime;
+
     if (gameState.running) {
-        // Update physics
-        world.step(1 / 60);
-
-        // Apply controls
-        const maxForce = 8000;
-        const maxSteerVal = 0.5;
-
-        gameState.throttle = 0;
-        gameState.brake = 0;
-
-        if (controls.throttle) {
-            let force = maxForce;
-
-            // ERS boost
-            if (controls.ers && gameState.ers > 0) {
-                force *= 1.3;
-                gameState.ers -= 0.5;
-            }
-
-            // DRS reduces drag (simulated as more force)
-            if (controls.drs && gameState.drsAvailable) {
-                gameState.drsActive = true;
-                force *= 1.1;
-            } else {
-                gameState.drsActive = false;
-            }
-
-            playerCar.vehicle.applyEngineForce(-force, 2);
-            playerCar.vehicle.applyEngineForce(-force, 3);
-            gameState.throttle = 1;
-
-            // Auto gear shifting
-            if (gameState.rpm > 13000 && gameState.gear < 7) {
-                gameState.gear++;
-            }
-        } else {
-            playerCar.vehicle.applyEngineForce(0, 2);
-            playerCar.vehicle.applyEngineForce(0, 3);
+        // Fixed timestep physics (prevents glitching)
+        while (accumulator >= fixedTimeStep) {
+            updatePhysics(fixedTimeStep);
+            accumulator -= fixedTimeStep;
         }
 
-        if (controls.brake) {
-            playerCar.vehicle.setBrake(50, 0);
-            playerCar.vehicle.setBrake(50, 1);
-            playerCar.vehicle.setBrake(50, 2);
-            playerCar.vehicle.setBrake(50, 3);
-            gameState.brake = 1;
+        // Smooth control interpolation
+        const lerpFactor = 0.15;
+        controls.currentThrottle += (Number(controls.throttle) - controls.currentThrottle) * lerpFactor;
+        controls.currentBrake += (Number(controls.brake) - controls.currentBrake) * lerpFactor;
 
-            if (gameState.speed < 50 && gameState.gear > 1) {
-                gameState.gear--;
-            }
-        } else {
-            playerCar.vehicle.setBrake(0, 0);
-            playerCar.vehicle.setBrake(0, 1);
-            playerCar.vehicle.setBrake(0, 2);
-            playerCar.vehicle.setBrake(0, 3);
-        }
-
-        if (controls.left) {
-            playerCar.vehicle.setSteeringValue(maxSteerVal, 0);
-            playerCar.vehicle.setSteeringValue(maxSteerVal, 1);
-        } else if (controls.right) {
-            playerCar.vehicle.setSteeringValue(-maxSteerVal, 0);
-            playerCar.vehicle.setSteeringValue(-maxSteerVal, 1);
-        } else {
-            playerCar.vehicle.setSteeringValue(0, 0);
-            playerCar.vehicle.setSteeringValue(0, 1);
-        }
-
-        // Fuel consumption
-        if (controls.throttle) {
-            gameState.fuel -= 0.005;
-        }
-
-        // ERS recharge (when not boosting)
-        if (!controls.ers && gameState.ers < 100) {
-            gameState.ers += 0.1;
-        }
+        let targetSteering = 0;
+        if (controls.left) targetSteering = 1;
+        if (controls.right) targetSteering = -1;
+        controls.currentSteering += (targetSteering - controls.currentSteering) * lerpFactor;
 
         // Sync mesh with physics
         playerCar.mesh.position.copy(playerCar.body.position);
@@ -537,28 +549,109 @@ function animate() {
             playerCar.mesh.wheels[index].quaternion.copy(t.quaternion);
         });
 
-        // Update camera
-        if (cameraMode === 'chase') {
-            const cameraOffset = new THREE.Vector3(0, 5, -15);
-            cameraOffset.applyQuaternion(playerCar.mesh.quaternion);
-            camera.position.copy(playerCar.mesh.position).add(cameraOffset);
-            camera.lookAt(playerCar.mesh.position);
-        } else {
-            const cockpitOffset = new THREE.Vector3(0, 1.5, 0.5);
-            cockpitOffset.applyQuaternion(playerCar.mesh.quaternion);
-            camera.position.copy(playerCar.mesh.position).add(cockpitOffset);
-
-            const lookTarget = new THREE.Vector3(0, 0, 10);
-            lookTarget.applyQuaternion(playerCar.mesh.quaternion);
-            lookTarget.add(playerCar.mesh.position);
-            camera.lookAt(lookTarget);
-        }
-
+        // Smooth camera movement
+        updateCamera();
         checkLapCompletion();
         updateHUD();
     }
 
     renderer.render(scene, camera);
+}
+
+function updatePhysics(dt) {
+    // Step physics
+    world.step(dt);
+
+    // Advanced engine simulation
+    const maxForce = 12000;
+    const rpmFactor = Math.min(1.0, gameState.rpm / 10000);
+    const gearRatios = [0, 0.25, 0.35, 0.5, 0.65, 0.75, 0.85, 0.95, 1.0];
+    const currentGearRatio = gearRatios[gameState.gear] || 0.25;
+
+    let engineForce = controls.currentThrottle * maxForce * rpmFactor * currentGearRatio;
+
+    // ERS boost
+    if (controls.ers && gameState.ers > 0) {
+        engineForce *= 1.35;
+        gameState.ers -= 0.3;
+    }
+
+    // DRS (reduces drag)
+    if (controls.drs && gameState.drsAvailable) {
+        gameState.drsActive = true;
+        engineForce *= 1.15;
+    } else {
+        gameState.drsActive = false;
+    }
+
+    // Apply engine force
+    playerCar.vehicle.applyEngineForce(-engineForce, 2);
+    playerCar.vehicle.applyEngineForce(-engineForce, 3);
+
+    // Advanced braking with brake balance
+    const brakeForce = controls.currentBrake * 100;
+    const brakeBalance = gameState.carSetup.brakeBalance / 100;
+    playerCar.vehicle.setBrake(brakeForce * brakeBalance, 0);
+    playerCar.vehicle.setBrake(brakeForce * brakeBalance, 1);
+    playerCar.vehicle.setBrake(brakeForce * (1 - brakeBalance), 2);
+    playerCar.vehicle.setBrake(brakeForce * (1 - brakeBalance), 3);
+
+    // Advanced steering with speed sensitivity
+    const speedFactor = Math.max(0.3, 1 - gameState.speed / 300);
+    const maxSteerVal = 0.6 * speedFactor;
+    const steerValue = controls.currentSteering * maxSteerVal;
+    playerCar.vehicle.setSteeringValue(steerValue, 0);
+    playerCar.vehicle.setSteeringValue(steerValue, 1);
+
+    // Aerodynamic downforce (increases with speed and wing settings)
+    const downforceCoeff = (gameState.carSetup.frontWing + gameState.carSetup.rearWing) / 20;
+    const speedSquared = gameState.speed * gameState.speed;
+    const downforce = downforceCoeff * speedSquared * 0.05;
+    playerCar.body.applyForce(new CANNON.Vec3(0, -downforce, 0), playerCar.body.position);
+
+    // Auto gear shifting
+    if (gameState.rpm > 13500 && gameState.gear < 8) {
+        gameState.gear++;
+    } else if (gameState.rpm < 8000 && gameState.gear > 1) {
+        gameState.gear--;
+    }
+
+    // Fuel consumption
+    if (controls.currentThrottle > 0.1) {
+        gameState.fuel -= 0.003 * controls.currentThrottle;
+    }
+
+    // ERS recharge
+    if (!controls.ers && gameState.ers < 100) {
+        gameState.ers += 0.08;
+    }
+}
+
+function updateCamera() {
+    const lerpFactor = 0.1;
+
+    if (cameraMode === 'chase') {
+        const cameraOffset = new THREE.Vector3(0, 4, -12);
+        cameraOffset.applyQuaternion(playerCar.mesh.quaternion);
+        const targetPosition = new THREE.Vector3().copy(playerCar.mesh.position).add(cameraOffset);
+
+        camera.position.lerp(targetPosition, lerpFactor);
+
+        const lookTarget = new THREE.Vector3().copy(playerCar.mesh.position);
+        lookTarget.y += 1;
+        camera.lookAt(lookTarget);
+    } else {
+        const cockpitOffset = new THREE.Vector3(0, 1.3, 0.5);
+        cockpitOffset.applyQuaternion(playerCar.mesh.quaternion);
+        const targetPosition = new THREE.Vector3().copy(playerCar.mesh.position).add(cockpitOffset);
+
+        camera.position.lerp(targetPosition, lerpFactor * 1.5);
+
+        const lookTarget = new THREE.Vector3(0, 0, 15);
+        lookTarget.applyQuaternion(playerCar.mesh.quaternion);
+        lookTarget.add(playerCar.mesh.position);
+        camera.lookAt(lookTarget);
+    }
 }
 
 // Setup menu functions
@@ -600,7 +693,7 @@ window.startSimulation = function() {
     gameState.running = true;
     gameState.lapStartTime = Date.now();
     createCircuit();
-    animate();
+    animate(0);
 };
 
 // Handle window resize
