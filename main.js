@@ -43,8 +43,6 @@ const controls = {
     brake: false,
     left: false,
     right: false,
-    shiftUp: false,
-    shiftDown: false,
     drs: false,
     ers: false,
     currentThrottle: 0,
@@ -489,8 +487,6 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') controls.brake = true;
     if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') controls.left = true;
     if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') controls.right = true;
-    if (e.key === 'Shift') controls.shiftUp = true;
-    if (e.key === 'Control') controls.shiftDown = true;
     if (e.key === ' ') { controls.drs = true; e.preventDefault(); }
     if (e.key === 'e' || e.key === 'E') controls.ers = true;
     if (e.key === 'c' || e.key === 'C') {
@@ -509,8 +505,6 @@ document.addEventListener('keyup', (e) => {
     if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') controls.brake = false;
     if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') controls.left = false;
     if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') controls.right = false;
-    if (e.key === 'Shift') controls.shiftUp = false;
-    if (e.key === 'Control') controls.shiftDown = false;
     if (e.key === ' ') controls.drs = false;
     if (e.key === 'e' || e.key === 'E') controls.ers = false;
 });
