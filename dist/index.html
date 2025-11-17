@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional F1 Racing Simulator</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏎️</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: #000;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* Professional HUD */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Telemetry Dashboard */
+        #telemetry {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #e10600;
+            border-radius: 5px;
+            padding: 15px;
+            min-width: 300px;
+        }
+
+        .telemetry-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .telemetry-label {
+            color: #aaa;
+            font-weight: bold;
+        }
+
+        .telemetry-value {
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+        }
+
+        .telemetry-value.warning {
+            color: #ff0;
+        }
+
+        .telemetry-value.danger {
+            color: #f00;
+        }
+
+        /* Tire Temps */
+        #tire-temps {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #e10600;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .tire-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .tire {
+            text-align: center;
+            padding: 10px;
+            background: #222;
+            border-radius: 5px;
+            border: 2px solid #555;
+        }
+
+        .tire.hot {
+            border-color: #f00;
+            background: #331111;
+        }
+
+        .tire.optimal {
+            border-color: #0f0;
+            background: #113311;
+        }
+
+        /* Lap Times */
+        #lap-times {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #e10600;
+            padding: 15px;
+            border-radius: 5px;
+            min-width: 250px;
+        }
+
+        .lap-time-entry {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid #333;
+        }
+
+        .lap-time-entry.best {
+            background: rgba(255, 215, 0, 0.2);
+            border-color: #ffd700;
+        }
+
+        /* DRS/ERS Indicators */
+        #systems {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #e10600;
+            padding: 15px;
+            border-radius: 5px;
+        }
+
+        .system-indicator {
+            margin: 8px 0;
+            padding: 8px;
+            background: #222;
+            border-radius: 3px;
+            border-left: 4px solid #555;
+        }
+
+        .system-indicator.active {
+            border-left-color: #0f0;
+            background: #113311;
+        }
+
+        .system-indicator.available {
+            border-left-color: #ff0;
+        }
+
+        /* Speedometer */
+        #speedometer {
+            position: absolute;
+            bottom: 150px;
+            right: 20px;
+            text-align: center;
+        }
+
+        #speed {
+            font-size: 60px;
+            font-weight: bold;
+            color: #e10600;
+            text-shadow: 0 0 10px #e10600;
+        }
+
+        #gear {
+            font-size: 40px;
+            color: #fff;
+            margin-top: 10px;
+        }
+
+        /* Setup Menu */
+        #setup-menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            border: 3px solid #e10600;
+            padding: 30px;
+            border-radius: 10px;
+            min-width: 500px;
+            display: none;
+            z-index: 100;
+        }
+
+        #setup-menu h2 {
+            color: #e10600;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 24px;
+        }
+
+        .setup-item {
+            margin: 15px 0;
+        }
+
+        .setup-item label {
+            display: block;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+
+        .setup-item input[type="range"] {
+            width: 100%;
+        }
+
+        .setup-value {
+            float: right;
+            color: #0f0;
+        }
+
+        .btn {
+            background: #e10600;
+            color: #fff;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-weight: bold;
+        }
+
+        .btn:hover {
+            background: #ff0000;
+        }
+
+        /* Start Screen */
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        #start-screen h1 {
+            font-size: 48px;
+            color: #e10600;
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            margin-top: 30px;
+            text-align: center;
+            line-height: 1.8;
+        }
+
+        .key {
+            background: #333;
+            padding: 5px 10px;
+            border-radius: 3px;
+            border: 1px solid #e10600;
+            margin: 0 5px;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #e10600;
+            display: none;
+        }
+    </style>
+  <script type="module" crossorigin src="/f1-racing-sim/assets/index-D47TgEGO.js"></script>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="hud">
+        <!-- Telemetry Dashboard -->
+        <div id="telemetry">
+            <h3 style="color: #e10600; margin-bottom: 10px;">TELEMETRY</h3>
+            <div class="telemetry-row">
+                <span class="telemetry-label">Speed:</span>
+                <span class="telemetry-value" id="tel-speed">0 km/h</span>
+            </div>
+            <div class="telemetry-row">
+                <span class="telemetry-label">RPM:</span>
+                <span class="telemetry-value" id="tel-rpm">0</span>
+            </div>
+            <div class="telemetry-row">
+                <span class="telemetry-label">Gear:</span>
+                <span class="telemetry-value" id="tel-gear">N</span>
+            </div>
+            <div class="telemetry-row">
+                <span class="telemetry-label">Throttle:</span>
+                <span class="telemetry-value" id="tel-throttle">0%</span>
+            </div>
+            <div class="telemetry-row">
+                <span class="telemetry-label">Brake:</span>
+                <span class="telemetry-value" id="tel-brake">0%</span>
+            </div>
+            <div class="telemetry-row">
+                <span class="telemetry-label">G-Force:</span>
+                <span class="telemetry-value" id="tel-gforce">0.0G</span>
+            </div>
+            <div class="telemetry-row">
+                <span class="telemetry-label">Fuel:</span>
+                <span class="telemetry-value" id="tel-fuel">100kg</span>
+            </div>
+            <div class="telemetry-row">
+                <span class="telemetry-label">Lap:</span>
+                <span class="telemetry-value" id="tel-lap">1 / 10</span>
+            </div>
+        </div>
+
+        <!-- Tire Temperatures -->
+        <div id="tire-temps">
+            <h3 style="color: #e10600; margin-bottom: 5px;">TIRE TEMPS</h3>
+            <div class="tire-grid">
+                <div class="tire" id="tire-fl">
+                    <div>FL</div>
+                    <div id="temp-fl">85°C</div>
+                </div>
+                <div class="tire" id="tire-fr">
+                    <div>FR</div>
+                    <div id="temp-fr">85°C</div>
+                </div>
+                <div class="tire" id="tire-rl">
+                    <div>RL</div>
+                    <div id="temp-rl">85°C</div>
+                </div>
+                <div class="tire" id="tire-rr">
+                    <div>RR</div>
+                    <div id="temp-rr">85°C</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lap Times -->
+        <div id="lap-times">
+            <h3 style="color: #e10600; margin-bottom: 10px;">LAP TIMES</h3>
+            <div class="lap-time-entry">
+                <span>Current:</span>
+                <span id="current-time">0:00.000</span>
+            </div>
+            <div class="lap-time-entry best">
+                <span>Best:</span>
+                <span id="best-time">--:--:---</span>
+            </div>
+            <div class="lap-time-entry">
+                <span>Delta:</span>
+                <span id="delta-time">+0.000</span>
+            </div>
+            <div class="lap-time-entry">
+                <span>Position:</span>
+                <span id="position">1st</span>
+            </div>
+        </div>
+
+        <!-- Systems -->
+        <div id="systems">
+            <h3 style="color: #e10600; margin-bottom: 10px;">SYSTEMS</h3>
+            <div class="system-indicator" id="drs-indicator">
+                <strong>DRS:</strong> <span id="drs-status">DISABLED</span>
+            </div>
+            <div class="system-indicator" id="ers-indicator">
+                <strong>ERS:</strong> <span id="ers-level">100%</span>
+            </div>
+            <div class="system-indicator">
+                <strong>Traction:</strong> <span id="tc-level">Medium</span>
+            </div>
+        </div>
+
+        <!-- Speedometer -->
+        <div id="speedometer">
+            <div id="speed">0</div>
+            <div style="color: #aaa;">KM/H</div>
+            <div id="gear">N</div>
+        </div>
+    </div>
+
+    <!-- Setup Menu -->
+    <div id="setup-menu">
+        <h2>CAR SETUP</h2>
+        <div class="setup-item">
+            <label>Front Wing: <span class="setup-value" id="fw-value">5</span></label>
+            <input type="range" id="front-wing" min="1" max="11" value="5">
+        </div>
+        <div class="setup-item">
+            <label>Rear Wing: <span class="setup-value" id="rw-value">7</span></label>
+            <input type="range" id="rear-wing" min="1" max="11" value="7">
+        </div>
+        <div class="setup-item">
+            <label>Brake Balance: <span class="setup-value" id="bb-value">50%</span></label>
+            <input type="range" id="brake-balance" min="40" max="60" value="50">
+        </div>
+        <div class="setup-item">
+            <label>Tire Pressure: <span class="setup-value" id="tp-value">23.0 PSI</span></label>
+            <input type="range" id="tire-pressure" min="20" max="25" step="0.5" value="23">
+        </div>
+        <div style="text-align: center; margin-top: 20px;">
+            <button class="btn" onclick="closeSetup()">Close</button>
+            <button class="btn" onclick="resetSetup()">Reset to Default</button>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen">
+        <h1>🏎️ PROFESSIONAL F1 SIMULATOR 🏎️</h1>
+        <p style="font-size: 18px; margin: 20px 0;">Monaco Grand Prix Circuit</p>
+        <button class="btn" style="font-size: 20px; padding: 15px 40px;" onclick="startSimulation()">START SIMULATION</button>
+        <button class="btn" onclick="openSetup()">Car Setup</button>
+
+        <div class="controls">
+            <h3 style="color: #e10600; margin-top: 30px;">CONTROLS</h3>
+            <p><span class="key">W</span> <span class="key">↑</span> Throttle</p>
+            <p><span class="key">S</span> <span class="key">↓</span> Brake</p>
+            <p><span class="key">A</span> <span class="key">←</span> Steer Left</p>
+            <p><span class="key">D</span> <span class="key">→</span> Steer Right</p>
+            <p><span class="key">Shift</span> Shift Up</p>
+            <p><span class="key">Ctrl</span> Shift Down</p>
+            <p><span class="key">Space</span> DRS (when available)</p>
+            <p><span class="key">E</span> ERS Boost</p>
+            <p><span class="key">C</span> Change Camera</p>
+            <p><span class="key">R</span> Reset Car</p>
+            <p style="margin-top: 20px; color: #ffd700;">Professional-grade simulator with realistic physics, telemetry, and F1 systems</p>
+        </div>
+    </div>
+
+    <div id="loading">LOADING SIMULATION...</div>
+
+</body>
+</html>
