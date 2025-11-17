@@ -1,0 +1,21 @@
+{
+  "name": "f1-racing-sim",
+  "version": "1.0.0",
+  "description": "Realistic F1 Racing Simulator with advanced graphics",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": ["f1", "racing", "simulation", "three.js", "game"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.160.0",
+    "cannon-es": "^0.20.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
