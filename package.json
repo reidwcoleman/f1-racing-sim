@@ -6,16 +6,24 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "npm run build && gh-pages -d dist"
   },
-  "keywords": ["f1", "racing", "simulation", "three.js", "game"],
+  "keywords": [
+    "f1",
+    "racing",
+    "simulation",
+    "three.js",
+    "game"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "three": "^0.160.0",
-    "cannon-es": "^0.20.0"
+    "cannon-es": "^0.20.0",
+    "three": "^0.160.0"
   },
   "devDependencies": {
+    "gh-pages": "^6.3.0",
     "vite": "^5.0.0"
   }
 }
