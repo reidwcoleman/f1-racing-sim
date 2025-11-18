@@ -289,7 +289,7 @@
             display: none;
         }
     </style>
-  <script type="module" crossorigin src="./assets/index-CJ8OuEPE.js"></script>
+  <script type="module" crossorigin src="./assets/index-DYqdxoCs.js"></script>
 </head>
 <body>
     <div id="canvas-container"></div>
@@ -332,26 +332,27 @@
             </div>
         </div>
 
-        <!-- Tire Temperatures -->
-        <div id="tire-temps">
-            <h3 style="color: #e10600; margin-bottom: 5px;">TIRE TEMPS</h3>
-            <div class="tire-grid">
-                <div class="tire" id="tire-fl">
-                    <div>FL</div>
-                    <div id="temp-fl">85°C</div>
+        <!-- Mini-Map -->
+        <div id="mini-map-container" style="position: absolute; bottom: 20px; left: 20px; background: rgba(0, 0, 0, 0.85); border: 2px solid #e10600; padding: 10px; border-radius: 5px;">
+            <h3 style="color: #e10600; margin-bottom: 5px; font-size: 14px;">MINI-MAP</h3>
+            <canvas id="mini-map" width="180" height="180" style="border: 1px solid #333;"></canvas>
+        </div>
+
+        <!-- Tire Wear & Damage -->
+        <div id="tire-damage-display" style="position: absolute; bottom: 240px; left: 20px; background: rgba(0, 0, 0, 0.85); border: 2px solid #e10600; padding: 10px; border-radius: 5px;">
+            <h3 style="color: #e10600; margin-bottom: 5px; font-size: 14px;">TIRE WEAR</h3>
+            <div style="margin: 5px 0;">
+                <div style="background: #222; height: 15px; width: 150px; border-radius: 5px; overflow: hidden;">
+                    <div id="tire-wear-bar" style="background: linear-gradient(90deg, #00ff00, #ffff00, #ff0000); height: 100%; width: 100%;"></div>
                 </div>
-                <div class="tire" id="tire-fr">
-                    <div>FR</div>
-                    <div id="temp-fr">85°C</div>
+                <p style="margin: 5px 0; font-size: 12px;"><span id="tire-wear-percent">100</span>%</p>
+            </div>
+            <h3 style="color: #e10600; margin: 10px 0 5px 0; font-size: 14px;">DAMAGE</h3>
+            <div style="margin: 5px 0;">
+                <div style="background: #222; height: 15px; width: 150px; border-radius: 5px; overflow: hidden;">
+                    <div id="damage-bar" style="background: #00ff00; height: 100%; width: 100%;"></div>
                 </div>
-                <div class="tire" id="tire-rl">
-                    <div>RL</div>
-                    <div id="temp-rl">85°C</div>
-                </div>
-                <div class="tire" id="tire-rr">
-                    <div>RR</div>
-                    <div id="temp-rr">85°C</div>
-                </div>
+                <p style="margin: 5px 0; font-size: 12px;"><span id="damage-percent">0</span>% Damage</p>
             </div>
         </div>
 

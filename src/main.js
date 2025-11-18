@@ -39,6 +39,9 @@ const gameState = {
     passedCheckpoint: false,
     fuel: 100,
     ers: 100,
+    kers: 100, // Lap-limited KERS (0-100, recharges on braking)
+    kersUsedThisLap: 0, // Track KERS usage per lap
+    maxKersPerLap: 100, // Maximum KERS available per lap
     drsAvailable: false,
     drsActive: false,
     speed: 0,
@@ -67,7 +70,11 @@ const gameState = {
     // Race results
     finishPosition: 0,
     moneyEarned: 0,
-    starsEarned: 0
+    starsEarned: 0,
+    // Tire wear & damage
+    tireWear: 100, // 100 = new tires, 0 = destroyed
+    damage: 0, // 0 = no damage, 100 = totaled
+    needsPitStop: false
 };
 
 // Starting light gantry meshes (will be created later)
@@ -1205,7 +1212,10 @@ document.addEventListener('keydown', (e) => {
     if (e.key === ' ') { controls.drs = true; e.preventDefault(); }
     if (e.key === 'e' || e.key === 'E') controls.ers = true;
     if (e.key === 'c' || e.key === 'C') {
-        cameraMode = cameraMode === 'chase' ? 'cockpit' : 'chase';
+        // Cycle through: chase -> bird's eye -> cockpit -> chase
+        if (cameraMode === 'chase') cameraMode = 'birds-eye';
+        else if (cameraMode === 'birds-eye') cameraMode = 'cockpit';
+        else cameraMode = 'chase';
     }
     if (e.key === 'r' || e.key === 'R') {
         gameState.position.set(230, 0.5, 0);
@@ -1441,6 +1451,13 @@ function animate(currentTime) {
         // Smooth camera movement
         updateCamera();
         checkLapCompletion();
+
+        // Update new Super Star Car systems
+        updateTireWear(deltaTime);
+        checkCollisions();
+        updateKERS(deltaTime);
+        drawMiniMap();
+
         updateHUD();
     }
 
@@ -1706,14 +1723,18 @@ function updateArcadePhysics(dt) {
         baseAcceleration = 9;
     }
 
+    // Apply damage and tire wear performance penalties
+    const damageMultiplier = 1 - (gameState.damage / 100) * 0.5; // Up to 50% slower with full damage
+    const tireWearMultiplier = 0.7 + (gameState.tireWear / 100) * 0.3; // Down to 70% grip with worn tires
+
     // Throttle - progressive acceleration like real F1
     if (controls.currentThrottle > 0.05) {
-        let accel = baseAcceleration * controls.currentThrottle;
+        let accel = baseAcceleration * controls.currentThrottle * damageMultiplier;
 
-        // ERS boost (extra power from hybrid system)
-        if (controls.ers && gameState.ers > 0) {
+        // KERS boost (lap-limited, recharges on braking)
+        if (controls.ers && gameState.kers > 10) {
             accel *= 1.3;
-            gameState.ers -= 0.3;
+            gameState.kers -= 0.8; // Drains faster than old ERS
         }
 
         // DRS boost (drag reduction - helps most at high speed)
@@ -1743,9 +1764,9 @@ function updateArcadePhysics(dt) {
     // Clamp velocity (no negative speed, max speed limit)
     gameState.velocity = Math.max(0, Math.min(maxSpeed, gameState.velocity));
 
-    // Steering - harder to turn at high speeds (realistic)
+    // Steering - harder to turn at high speeds (realistic), affected by tire wear
     const speedFactor = Math.max(0.2, 1 - (gameState.velocity / maxSpeed) * 0.8);
-    gameState.rotation += controls.currentSteering * turnSpeed * speedFactor * dt;
+    gameState.rotation += controls.currentSteering * turnSpeed * speedFactor * tireWearMultiplier * dt;
 
     // Move car forward in the direction it's facing
     const forward = new THREE.Vector3(
@@ -1792,7 +1813,18 @@ function updateCamera() {
         const lookTarget = new THREE.Vector3().copy(playerCar.mesh.position);
         lookTarget.y += 1;
         camera.lookAt(lookTarget);
+    } else if (cameraMode === 'birds-eye') {
+        // Bird's eye view - top-down perspective
+        const targetPosition = new THREE.Vector3(
+            playerCar.mesh.position.x,
+            playerCar.mesh.position.y + 40, // High above the car
+            playerCar.mesh.position.z
+        );
+
+        camera.position.lerp(targetPosition, lerpFactor);
+        camera.lookAt(playerCar.mesh.position);
     } else {
+        // Cockpit view
         const cockpitOffset = new THREE.Vector3(0, 1.3, 0.5);
         cockpitOffset.applyQuaternion(playerCar.mesh.quaternion);
         const targetPosition = new THREE.Vector3().copy(playerCar.mesh.position).add(cockpitOffset);
@@ -2133,12 +2165,178 @@ function updateAllMenus() {
     updateGarageHeader();
 }
 
+// ========== MINI-MAP SYSTEM ==========
+function drawMiniMap() {
+    const canvas = document.getElementById('mini-map');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const trackRadius = 70; // Radius on mini-map
+
+    // Clear canvas
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw track (circular for now)
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 20;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, trackRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Draw track center line
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, trackRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw start/finish line
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(centerX + trackRadius - 5, centerY - 15, 10, 30);
+
+    // Draw AI cars
+    aiCars.forEach((ai, index) => {
+        const angle = Math.atan2(ai.position.z, ai.position.x);
+        const x = centerX + Math.cos(angle) * trackRadius;
+        const y = centerY + Math.sin(angle) * trackRadius;
+
+        ctx.fillStyle = ['#0066cc', '#00cc00', '#ffaa00', '#9900cc', '#00cccc'][index];
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // Draw player car (larger, red)
+    const playerAngle = Math.atan2(gameState.position.z, gameState.position.x);
+    const playerX = centerX + Math.cos(playerAngle) * trackRadius;
+    const playerY = centerY + Math.sin(playerAngle) * trackRadius;
+
+    ctx.fillStyle = '#e10600';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(playerX, playerY, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+}
+
+// ========== TIRE WEAR SYSTEM ==========
+function updateTireWear(dt) {
+    if (!gameState.raceStarted) return;
+
+    // Tire wear rate depends on:
+    // - Speed (faster = more wear)
+    // - Cornering (sharper = more wear)
+    // - Tire upgrade level (better tires = less wear)
+
+    const speedWear = (gameState.velocity / 350) * 0.15 * dt; // Base wear from speed
+    const cornerWear = Math.abs(controls.currentSteering) * 0.3 * dt; // Cornering wear
+    const tireUpgradeBonus = 1 - (careerState.carUpgrades.tires - 1) * 0.05; // Better tires wear slower
+
+    const totalWear = (speedWear + cornerWear) * tireUpgradeBonus;
+    gameState.tireWear = Math.max(0, gameState.tireWear - totalWear);
+
+    // Update UI
+    const wearPercent = Math.round(gameState.tireWear);
+    document.getElementById('tire-wear-percent').textContent = wearPercent;
+    document.getElementById('tire-wear-bar').style.width = wearPercent + '%';
+
+    // Worn tires affect grip
+    if (gameState.tireWear < 30) {
+        gameState.needsPitStop = true;
+    }
+}
+
+// ========== DAMAGE SYSTEM ==========
+function checkCollisions() {
+    if (!gameState.raceStarted) return;
+
+    const trackRadius = 200;
+    const distanceFromCenter = Math.sqrt(
+        gameState.position.x * gameState.position.x +
+        gameState.position.z * gameState.position.z
+    );
+
+    // Check if car hit barriers (too close to center or too far)
+    const innerLimit = trackRadius * 0.92;
+    const outerLimit = trackRadius * 1.32;
+
+    if (distanceFromCenter < innerLimit || distanceFromCenter > outerLimit) {
+        // Hit barrier! Apply damage based on speed
+        const damageAmount = (gameState.velocity / 350) * 0.5; // Faster = more damage
+        gameState.damage = Math.min(100, gameState.damage + damageAmount);
+
+        // Slow down from collision
+        gameState.velocity *= 0.95;
+
+        // Update UI
+        const damagePercent = Math.round(gameState.damage);
+        document.getElementById('damage-percent').textContent = damagePercent;
+        document.getElementById('damage-bar').style.width = (100 - damagePercent) + '%';
+
+        if (gameState.damage < 30) {
+            document.getElementById('damage-bar').style.background = '#00ff00';
+        } else if (gameState.damage < 70) {
+            document.getElementById('damage-bar').style.background = '#ffff00';
+        } else {
+            document.getElementById('damage-bar').style.background = '#ff0000';
+        }
+    }
+}
+
+// ========== LAP-LIMITED KERS SYSTEM ==========
+function updateKERS(dt) {
+    // KERS recharges when braking (kinetic energy recovery)
+    if (controls.currentBrake > 0.1 && gameState.velocity > 50) {
+        const recoveryRate = controls.currentBrake * gameState.velocity * 0.01;
+        gameState.kers = Math.min(100, gameState.kers + recoveryRate * dt);
+    }
+
+    // Upgrade KERS affects max capacity
+    const kersUpgradeBonus = 1 + (careerState.carUpgrades.kers - 1) * 0.1;
+    gameState.maxKersPerLap = 100 * kersUpgradeBonus;
+
+    // Update HUD
+    document.getElementById('ers-level').textContent = Math.round(gameState.kers) + '%';
+
+    // KERS availability indicator
+    if (gameState.kers > 10) {
+        document.getElementById('ers-indicator').className = 'system-indicator available';
+    } else {
+        document.getElementById('ers-indicator').className = 'system-indicator';
+    }
+}
+
 // Start simulation
 window.startSimulation = function() {
     console.log('Starting simulation...');
     document.getElementById('start-screen').style.display = 'none';
+
+    // Reset race state
     gameState.running = true;
+    gameState.raceStarted = false;
+    gameState.startLightSequence = 0;
+    gameState.startLightTimer = 0;
+    gameState.currentLap = 1;
     gameState.lapStartTime = Date.now();
+    gameState.bestLapTime = null;
+
+    // Reset tire wear, damage, KERS
+    gameState.tireWear = 100;
+    gameState.damage = 0;
+    gameState.kers = 100;
+    gameState.needsPitStop = false;
+
+    // Reset car position
+    gameState.velocity = 0;
+    gameState.position.set(230, 0.5, 3);
+    gameState.rotation = 0;
+
     createCircuit();
     createStartingGrid(200); // Create starting grid positions
     createAICars(); // Create AI opponent cars
