@@ -780,8 +780,8 @@ function createF1Car() {
     });
     chassisBody.addShape(chassisShape);
     chassisBody.position.set(230, 2, 0);
-    chassisBody.linearDamping = 0; // Zero damping for maximum speed
-    chassisBody.angularDamping = 0.2;
+    chassisBody.linearDamping = 0.05; // Slight damping for stability
+    chassisBody.angularDamping = 0.8; // High angular damping to prevent wobbling
     world.addBody(chassisBody);
 
     // Advanced vehicle with better suspension
@@ -792,21 +792,21 @@ function createF1Car() {
         indexForwardAxis: 2
     });
 
-    // Advanced suspension settings
+    // Advanced suspension settings for stability
     const wheelOptions = {
         radius: 0.4,
         directionLocal: new CANNON.Vec3(0, -1, 0),
-        suspensionStiffness: 50, // Stiffer F1 suspension
-        suspensionRestLength: 0.2,
-        frictionSlip: 50, // Ultra high grip for massive acceleration
-        dampingRelaxation: 3,
-        dampingCompression: 5,
-        maxSuspensionForce: 500000, // Much higher for F1
-        rollInfluence: 0.005, // Minimal roll
+        suspensionStiffness: 100, // Much stiffer for stability
+        suspensionRestLength: 0.3,
+        frictionSlip: 100, // Extremely high grip to prevent sliding
+        dampingRelaxation: 5, // Higher damping for stability
+        dampingCompression: 8, // Higher compression damping
+        maxSuspensionForce: 1000000, // Massive force to keep wheels planted
+        rollInfluence: 0.001, // Almost no roll
         axleLocal: new CANNON.Vec3(-1, 0, 0),
         chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-        maxSuspensionTravel: 0.15, // Limited travel like F1
-        customSlidingRotationalSpeed: -30,
+        maxSuspensionTravel: 0.1, // Very limited travel for stability
+        customSlidingRotationalSpeed: -15,
         useCustomSlidingRotationalSpeed: true
     };
 
@@ -1039,15 +1039,18 @@ function updatePhysics(dt) {
     // Step physics
     world.step(dt);
 
-    // Direct drive engine - no gears, just raw power
-    const maxForce = 1500000; // Maximum F1 power
+    // Direct drive engine with traction control
+    const maxForce = 800000; // Powerful but controlled
 
-    // Full power at all speeds
-    let engineForce = controls.currentThrottle * maxForce;
+    // Progressive power delivery based on speed (traction control)
+    const speedRatio = Math.min(1, gameState.speed / 50); // Ramp up power from 0-50 kph
+    const tractionMultiplier = 0.3 + (speedRatio * 0.7); // 30% power at low speed, 100% at 50+ kph
+
+    let engineForce = controls.currentThrottle * maxForce * tractionMultiplier;
 
     // ERS boost
     if (controls.ers && gameState.ers > 0) {
-        engineForce *= 1.35;
+        engineForce *= 1.25;
         gameState.ers -= 0.3;
     }
 
