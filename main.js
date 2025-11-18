@@ -892,8 +892,8 @@ function createF1Car() {
     });
     chassisBody.addShape(chassisShape);
     chassisBody.position.set(230, 2, 0);
-    chassisBody.linearDamping = 0.05; // Slight damping for stability
-    chassisBody.angularDamping = 0.8; // High angular damping to prevent wobbling
+    chassisBody.linearDamping = 0.1; // More damping for stability
+    chassisBody.angularDamping = 0.95; // Very high angular damping to prevent wobbling
     world.addBody(chassisBody);
 
     // Advanced vehicle with better suspension
@@ -908,17 +908,17 @@ function createF1Car() {
     const wheelOptions = {
         radius: 0.4,
         directionLocal: new CANNON.Vec3(0, -1, 0),
-        suspensionStiffness: 100, // Much stiffer for stability
+        suspensionStiffness: 150, // Even stiffer for better stability
         suspensionRestLength: 0.3,
-        frictionSlip: 100, // Extremely high grip to prevent sliding
-        dampingRelaxation: 5, // Higher damping for stability
-        dampingCompression: 8, // Higher compression damping
-        maxSuspensionForce: 1000000, // Massive force to keep wheels planted
-        rollInfluence: 0.001, // Almost no roll
+        frictionSlip: 250, // Much higher grip to prevent wobbling
+        dampingRelaxation: 10, // Much higher damping for smooth ride
+        dampingCompression: 12, // Much higher compression damping
+        maxSuspensionForce: 1500000, // Even more force to keep wheels planted
+        rollInfluence: 0.0005, // Almost no roll
         axleLocal: new CANNON.Vec3(-1, 0, 0),
         chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-        maxSuspensionTravel: 0.1, // Very limited travel for stability
-        customSlidingRotationalSpeed: -15,
+        maxSuspensionTravel: 0.08, // Even more limited travel for stability
+        customSlidingRotationalSpeed: -10,
         useCustomSlidingRotationalSpeed: true
     };
 
@@ -1152,11 +1152,11 @@ function updatePhysics(dt) {
     world.step(dt);
 
     // Direct drive engine with traction control
-    const maxForce = 500000; // Smoother, more realistic power
+    const maxForce = 250000; // Realistic F1 power for smoother acceleration
 
     // Progressive power delivery based on speed (traction control)
-    const speedRatio = Math.min(1, gameState.speed / 80); // Ramp up power from 0-80 kph
-    const tractionMultiplier = 0.4 + (speedRatio * 0.6); // 40% power at low speed, 100% at 80+ kph
+    const speedRatio = Math.min(1, gameState.speed / 100); // Ramp up power from 0-100 kph
+    const tractionMultiplier = 0.5 + (speedRatio * 0.5); // 50% power at low speed, 100% at 100+ kph
 
     let engineForce = controls.currentThrottle * maxForce * tractionMultiplier;
 

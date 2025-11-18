@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: '/f1-racing-sim/',
+  base: './',
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
