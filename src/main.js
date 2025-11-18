@@ -1206,13 +1206,13 @@ function updatePhysics(dt) {
     playerCar.vehicle.setSteeringValue(steerValue, 0);
     playerCar.vehicle.setSteeringValue(steerValue, 1);
 
-    // Aerodynamic downforce (only applies when moving)
-    if (gameState.speed > 5) {
-        const downforceCoeff = (gameState.carSetup.frontWing + gameState.carSetup.rearWing) / 40;
-        const speedSquared = gameState.speed * gameState.speed;
-        const downforce = downforceCoeff * speedSquared * 0.3;
-        playerCar.body.applyForce(new CANNON.Vec3(0, -downforce, 0), playerCar.body.position);
-    }
+    // Aerodynamic downforce disabled to prevent bouncing
+    // if (gameState.speed > 5) {
+    //     const downforceCoeff = (gameState.carSetup.frontWing + gameState.carSetup.rearWing) / 40;
+    //     const speedSquared = gameState.speed * gameState.speed;
+    //     const downforce = downforceCoeff * speedSquared * 0.3;
+    //     playerCar.body.applyForce(new CANNON.Vec3(0, -downforce, 0), playerCar.body.position);
+    // }
 
     // Fixed gear - always in top gear for direct drive
     gameState.gear = 8;
