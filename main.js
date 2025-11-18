@@ -871,16 +871,14 @@ function updateHUD() {
     gameState.gforce = gforce;
     gameState.prevVelocity.copy(velocity);
 
-    // Calculate RPM based on speed and gear
+    // Calculate RPM based on speed (direct drive, no gears)
     const maxRPM = 15000;
-    const gearRatios = [0, 1.0, 0.95, 0.85, 0.75, 0.65, 0.55, 0.45, 0.35];
-    const gearRatio = gearRatios[gameState.gear] || 1.0;
-    gameState.rpm = Math.min(maxRPM, (speed / 330) * maxRPM / gearRatio);
+    gameState.rpm = Math.min(maxRPM, (speed / 330) * maxRPM);
 
     // Update telemetry
     document.getElementById('tel-speed').textContent = Math.round(speed) + ' km/h';
     document.getElementById('tel-rpm').textContent = Math.round(gameState.rpm);
-    document.getElementById('tel-gear').textContent = gameState.gear;
+    document.getElementById('tel-gear').textContent = 'AUTO';
     document.getElementById('tel-throttle').textContent = Math.round(controls.currentThrottle * 100) + '%';
     document.getElementById('tel-brake').textContent = Math.round(controls.currentBrake * 100) + '%';
     document.getElementById('tel-gforce').textContent = gforce.toFixed(2) + 'G';
@@ -889,7 +887,7 @@ function updateHUD() {
 
     // Speedometer
     document.getElementById('speed').textContent = Math.round(speed);
-    document.getElementById('gear').textContent = gameState.gear;
+    document.getElementById('gear').textContent = 'AUTO';
 
     // Realistic tire temps based on speed and cornering
     const baseTempIncrease = speed * 0.04;
@@ -1041,16 +1039,11 @@ function updatePhysics(dt) {
     // Step physics
     world.step(dt);
 
-    // Advanced engine simulation (tuned for 330 km/h top speed)
-    const maxForce = 1200000; // Ultra powerful F1 engine
-    const gearRatios = [0, 1.0, 0.95, 0.85, 0.75, 0.65, 0.55, 0.45, 0.35];
-    const currentGearRatio = gearRatios[gameState.gear] || 1.0;
+    // Direct drive engine - no gears, just raw power
+    const maxForce = 1500000; // Maximum F1 power
 
-    // Always provide strong power
-    const baseRPM = Math.max(gameState.rpm, 10000);
-    const rpmFactor = Math.max(0.85, Math.min(1.0, baseRPM / 12000));
-
-    let engineForce = controls.currentThrottle * maxForce * rpmFactor * currentGearRatio;
+    // Full power at all speeds
+    let engineForce = controls.currentThrottle * maxForce;
 
     // ERS boost
     if (controls.ers && gameState.ers > 0) {
@@ -1091,12 +1084,8 @@ function updatePhysics(dt) {
     const downforce = downforceCoeff * speedSquared * 0.05;
     playerCar.body.applyForce(new CANNON.Vec3(0, -downforce, 0), playerCar.body.position);
 
-    // Auto gear shifting
-    if (gameState.rpm > 13500 && gameState.gear < 8) {
-        gameState.gear++;
-    } else if (gameState.rpm < 8000 && gameState.gear > 1) {
-        gameState.gear--;
-    }
+    // Fixed gear - always in top gear for direct drive
+    gameState.gear = 8;
 
     // Fuel consumption
     if (controls.currentThrottle > 0.1) {
