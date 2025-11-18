@@ -1,5 +1,29 @@
 import * as THREE from 'three';
 
+// Career Mode State
+const careerState = {
+    currentSeason: 1,
+    currentRaceIndex: 0,
+    totalMoney: 0,
+    totalStars: 0,
+    level: 1,
+    totalTrophies: 0, // 1st place wins
+    totalRunnerUps: 0, // 2nd/3rd places
+    totalRaces: 0,
+    carUpgrades: {
+        engine: 1,      // 1-10
+        aerodynamics: 1, // 1-10
+        tires: 1,       // 1-10
+        brakes: 1,      // 1-10
+        kers: 1         // 1-10
+    },
+    completedRaces: {}, // Track which races completed with stars
+    unlockedCircuits: ['monaco'], // Start with one unlocked
+    unlockedCars: ['red-bull'], // Start with one car
+    currentCircuit: 'monaco',
+    currentCar: 'red-bull'
+};
+
 // Game State
 const gameState = {
     running: false,
@@ -39,7 +63,11 @@ const gameState = {
     rotation: 0,
     position: new THREE.Vector3(230, 0.5, 3), // Starting position (P2)
     prevSpeed: 0,
-    playerPosition: 2 // Starting in P2
+    playerPosition: 2, // Starting in P2
+    // Race results
+    finishPosition: 0,
+    moneyEarned: 0,
+    starsEarned: 0
 };
 
 // Starting light gantry meshes (will be created later)
@@ -1339,8 +1367,29 @@ function completeLap() {
     gameState.checkpoints.forEach(cp => cp.passed = false);
 
     if (gameState.currentLap > gameState.totalLaps) {
-        alert('Race Complete! Best Lap: ' + formatTime(gameState.bestLapTime));
+        // Race finished!
         gameState.running = false;
+
+        // Calculate final position
+        const allCars = [
+            { lap: gameState.currentLap - 1, position: gameState.position.clone(), isPlayer: true },
+            ...aiCars.map(ai => ({ lap: ai.currentLap, position: ai.position.clone(), isPlayer: false }))
+        ];
+
+        allCars.sort((a, b) => {
+            if (b.lap !== a.lap) return b.lap - a.lap;
+            const angleA = Math.atan2(a.position.z, a.position.x);
+            const angleB = Math.atan2(b.position.z, b.position.x);
+            return angleB - angleA;
+        });
+
+        const playerRacePosition = allCars.findIndex(car => car.isPlayer) + 1;
+        gameState.finishPosition = playerRacePosition;
+
+        // Show results screen
+        setTimeout(() => {
+            showRaceResults();
+        }, 2000);
     }
 }
 
@@ -1624,10 +1673,16 @@ function updateArcadePhysics(dt) {
         return;
     }
 
-    const maxSpeed = 350; // km/h - F1 top speed
-    const braking = 250; // km/h per second - powerful F1 brakes
-    const drag = 12; // air resistance
-    const turnSpeed = 1.8; // radians per second
+    // Apply car upgrades to performance
+    const engineBoost = 1 + (careerState.carUpgrades.engine - 1) * 0.08; // +8% per level
+    const aeroBoost = 1 + (careerState.carUpgrades.aerodynamics - 1) * 0.05; // +5% per level
+    const tireBoost = 1 + (careerState.carUpgrades.tires - 1) * 0.06; // +6% per level
+    const brakeBoost = 1 + (careerState.carUpgrades.brakes - 1) * 0.07; // +7% per level
+
+    const maxSpeed = 350 * engineBoost; // km/h - F1 top speed with engine upgrades
+    const braking = 250 * brakeBoost; // km/h per second - powerful F1 brakes with brake upgrades
+    const drag = 12 / aeroBoost; // air resistance reduced by aero upgrades
+    const turnSpeed = 1.8 * tireBoost; // radians per second improved by tire upgrades
 
     // Realistic F1 acceleration with progressive gear changes
     // Each gear has different acceleration - lower gears faster, higher gears slower
@@ -1785,7 +1840,298 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('#setup-menu input[type="range"]').forEach(input => {
         input.addEventListener('input', updateSetupValues);
     });
+
+    // Load saved career progress
+    loadCareerProgress();
+    updateAllMenus();
 });
+
+// ========== MENU NAVIGATION ==========
+window.showMainMenu = function() {
+    document.getElementById('main-menu').style.display = 'flex';
+    document.getElementById('career-screen').style.display = 'none';
+    document.getElementById('profile-screen').style.display = 'none';
+    document.getElementById('garage-screen').style.display = 'none';
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('results-screen').style.display = 'none';
+    updateAllMenus();
+};
+
+window.showCareerMode = function() {
+    document.getElementById('main-menu').style.display = 'none';
+    document.getElementById('career-screen').style.display = 'block';
+    populateRaceCalendar();
+    updateCareerHeader();
+};
+
+window.showQuickRace = function() {
+    document.getElementById('main-menu').style.display = 'none';
+    document.getElementById('start-screen').style.display = 'flex';
+};
+
+window.showProfile = function() {
+    document.getElementById('main-menu').style.display = 'none';
+    document.getElementById('profile-screen').style.display = 'block';
+    updateProfileScreen();
+};
+
+window.showGarage = function() {
+    document.getElementById('main-menu').style.display = 'none';
+    document.getElementById('garage-screen').style.display = 'block';
+    populateUpgradeList();
+    updateGarageHeader();
+};
+
+// ========== CAREER MODE FUNCTIONS ==========
+const circuits = [
+    { id: 'monaco', name: 'Monaco Grand Prix', difficulty: 'Hard', prize: 15000, laps: 10 },
+    { id: 'arcport', name: 'Arcport Circuit', difficulty: 'Medium', prize: 12000, laps: 12 },
+    { id: 'yafield', name: 'Yafield Park', difficulty: 'Easy', prize: 10000, laps: 15 },
+    { id: 'riverside', name: 'Riverside Circuit', difficulty: 'Medium', prize: 13000, laps: 14 },
+    { id: 'silverstone', name: 'Silverstone Circuit', difficulty: 'Hard', prize: 16000, laps: 10 }
+];
+
+function populateRaceCalendar() {
+    const calendar = document.getElementById('race-calendar');
+    calendar.innerHTML = '';
+
+    circuits.forEach((circuit, index) => {
+        const isUnlocked = careerState.unlockedCircuits.includes(circuit.id) || index === 0;
+        const isCompleted = careerState.completedRaces[circuit.id];
+        const stars = isCompleted ? isCompleted.stars : 0;
+
+        const raceCard = document.createElement('div');
+        raceCard.style.cssText = `
+            background: rgba(255,255,255,0.05);
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid ${isUnlocked ? '#e10600' : '#555'};
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            opacity: ${isUnlocked ? '1' : '0.5'};
+            cursor: ${isUnlocked ? 'pointer' : 'not-allowed'};
+        `;
+
+        if (isUnlocked) {
+            raceCard.onclick = () => startCareerRace(circuit);
+        }
+
+        raceCard.innerHTML = `
+            <div>
+                <h3 style="color: #ffd700; margin-bottom: 10px;">${circuit.name}</h3>
+                <div style="color: #aaa;">
+                    <span>Difficulty: ${circuit.difficulty}</span> |
+                    <span>Laps: ${circuit.laps}</span> |
+                    <span>Prize: $${circuit.prize}</span>
+                </div>
+                <div style="margin-top: 10px;">
+                    ${isUnlocked ? (isCompleted ? `⭐ ${stars} stars earned` : '🔓 Available') : '🔒 Locked'}
+                </div>
+            </div>
+            <div style="font-size: 48px;">
+                ${isUnlocked ? '▶️' : '🔒'}
+            </div>
+        `;
+
+        calendar.appendChild(raceCard);
+    });
+}
+
+function startCareerRace(circuit) {
+    careerState.currentCircuit = circuit.id;
+    gameState.totalLaps = circuit.laps;
+
+    // Hide career screen, start race
+    document.getElementById('career-screen').style.display = 'none';
+    console.log('Starting career race:', circuit.name);
+    startSimulation();
+}
+
+function updateCareerHeader() {
+    document.getElementById('current-season').textContent = careerState.currentSeason;
+    document.getElementById('career-money').textContent = careerState.totalMoney.toLocaleString();
+    document.getElementById('career-stars').textContent = careerState.totalStars;
+    document.getElementById('career-level').textContent = careerState.level;
+}
+
+// ========== PROFILE FUNCTIONS ==========
+function updateProfileScreen() {
+    document.getElementById('profile-level').textContent = careerState.level;
+    document.getElementById('profile-money').textContent = careerState.totalMoney.toLocaleString();
+    document.getElementById('profile-stars').textContent = careerState.totalStars;
+    document.getElementById('profile-races').textContent = careerState.totalRaces;
+    document.getElementById('profile-trophies').textContent = careerState.totalTrophies;
+    document.getElementById('profile-runnerups').textContent = careerState.totalRunnerUps;
+}
+
+// ========== GARAGE / UPGRADE FUNCTIONS ==========
+const upgradeData = {
+    engine: { name: 'Engine', icon: '🔧', baseCost: 5000, costMultiplier: 2, description: 'Increases top speed and acceleration' },
+    aerodynamics: { name: 'Aerodynamics', icon: '💨', baseCost: 3000, costMultiplier: 1.8, description: 'Reduces drag, improves stability' },
+    tires: { name: 'Tires', icon: '🏁', baseCost: 2000, costMultiplier: 1.5, description: 'Better grip in corners' },
+    brakes: { name: 'Brakes', icon: '🛑', baseCost: 2000, costMultiplier: 1.5, description: 'Shorter braking distance' },
+    kers: { name: 'KERS System', icon: '⚡', baseCost: 10000, costMultiplier: 2.5, description: 'Longer boost duration' }
+};
+
+function populateUpgradeList() {
+    const upgradeList = document.getElementById('upgrade-list');
+    upgradeList.innerHTML = '';
+
+    Object.keys(upgradeData).forEach(key => {
+        const upgrade = upgradeData[key];
+        const currentLevel = careerState.carUpgrades[key];
+        const cost = Math.floor(upgrade.baseCost * Math.pow(upgrade.costMultiplier, currentLevel - 1));
+        const canAfford = careerState.totalMoney >= cost;
+        const isMaxLevel = currentLevel >= 10;
+
+        const upgradeCard = document.createElement('div');
+        upgradeCard.style.cssText = `
+            background: rgba(255,255,255,0.05);
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #00cc00;
+        `;
+
+        upgradeCard.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="color: #ffd700; margin-bottom: 10px;">${upgrade.icon} ${upgrade.name}</h3>
+                    <p style="color: #aaa; margin-bottom: 15px;">${upgrade.description}</p>
+                    <div style="background: #222; height: 20px; width: 300px; border-radius: 10px; overflow: hidden;">
+                        <div style="background: linear-gradient(90deg, #00cc00, #00ff00); height: 100%; width: ${currentLevel * 10}%;"></div>
+                    </div>
+                    <p style="margin-top: 10px;">Level: ${currentLevel} / 10</p>
+                </div>
+                <div style="text-align: center;">
+                    ${!isMaxLevel ? `
+                        <button class="btn"
+                            style="background: ${canAfford ? '#00cc00' : '#666'}; font-size: 18px; padding: 15px 30px;"
+                            onclick="${canAfford ? `buyUpgrade('${key}')` : ''}"
+                            ${!canAfford ? 'disabled' : ''}>
+                            ${canAfford ? `UPGRADE<br>$${cost.toLocaleString()}` : `NEED $${cost.toLocaleString()}`}
+                        </button>
+                    ` : '<div style="color: #ffd700; font-size: 20px;">✅ MAX LEVEL</div>'}
+                </div>
+            </div>
+        `;
+
+        upgradeList.appendChild(upgradeCard);
+    });
+}
+
+window.buyUpgrade = function(upgradeKey) {
+    const upgrade = upgradeData[upgradeKey];
+    const currentLevel = careerState.carUpgrades[upgradeKey];
+    const cost = Math.floor(upgrade.baseCost * Math.pow(upgrade.costMultiplier, currentLevel - 1));
+
+    if (careerState.totalMoney >= cost && currentLevel < 10) {
+        careerState.totalMoney -= cost;
+        careerState.carUpgrades[upgradeKey]++;
+
+        saveCareerProgress();
+        populateUpgradeList();
+        updateGarageHeader();
+
+        console.log(`Upgraded ${upgrade.name} to level ${careerState.carUpgrades[upgradeKey]}`);
+    }
+};
+
+function updateGarageHeader() {
+    document.getElementById('garage-money').textContent = careerState.totalMoney.toLocaleString();
+}
+
+// ========== RACE RESULTS ==========
+window.showRaceResults = function() {
+    document.getElementById('results-screen').style.display = 'flex';
+
+    // Calculate position, money, stars based on finish
+    const position = gameState.finishPosition;
+    let money = 0;
+    let stars = 0;
+
+    if (position === 1) {
+        money = 10000;
+        stars = 3;
+        careerState.totalTrophies++;
+    } else if (position === 2) {
+        money = 6000;
+        stars = 2;
+        careerState.totalRunnerUps++;
+    } else if (position === 3) {
+        money = 3000;
+        stars = 1;
+        careerState.totalRunnerUps++;
+    } else if (position <= 6) {
+        money = 1000;
+        stars = 0;
+    }
+
+    // Update career stats
+    careerState.totalMoney += money;
+    careerState.totalStars += stars;
+    careerState.totalRaces++;
+    careerState.level = Math.floor(careerState.totalRaces / 5) + 1;
+
+    // Save race completion
+    const currentCircuit = circuits.find(c => c.id === careerState.currentCircuit);
+    if (currentCircuit) {
+        if (!careerState.completedRaces[currentCircuit.id] || careerState.completedRaces[currentCircuit.id].stars < stars) {
+            careerState.completedRaces[currentCircuit.id] = { stars, position };
+        }
+    }
+
+    // Update results display
+    const positionText = position === 1 ? '1st' : position === 2 ? '2nd' : position === 3 ? '3rd' : `${position}th`;
+    document.getElementById('result-position').textContent = positionText;
+    document.getElementById('result-money').textContent = money.toLocaleString();
+    document.getElementById('result-stars').textContent = stars;
+    document.getElementById('result-best-time').textContent = gameState.bestLapTime ? formatTime(gameState.bestLapTime) : '0:00.000';
+
+    saveCareerProgress();
+};
+
+window.returnToCareer = function() {
+    document.getElementById('results-screen').style.display = 'none';
+    showCareerMode();
+};
+
+window.restartRace = function() {
+    document.getElementById('results-screen').style.display = 'none';
+    const currentCircuit = circuits.find(c => c.id === careerState.currentCircuit);
+    if (currentCircuit) {
+        startCareerRace(currentCircuit);
+    }
+};
+
+// ========== SAVE / LOAD SYSTEM ==========
+function saveCareerProgress() {
+    try {
+        localStorage.setItem('superStarCarSave', JSON.stringify(careerState));
+        console.log('Career progress saved');
+    } catch (e) {
+        console.error('Failed to save:', e);
+    }
+}
+
+function loadCareerProgress() {
+    try {
+        const saved = localStorage.getItem('superStarCarSave');
+        if (saved) {
+            const loadedData = JSON.parse(saved);
+            Object.assign(careerState, loadedData);
+            console.log('Career progress loaded');
+        }
+    } catch (e) {
+        console.error('Failed to load:', e);
+    }
+}
+
+function updateAllMenus() {
+    updateCareerHeader();
+    updateProfileScreen();
+    updateGarageHeader();
+}
 
 // Start simulation
 window.startSimulation = function() {
