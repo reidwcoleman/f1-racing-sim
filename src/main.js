@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import * as CANNON from 'cannon-es';
 
 // Game State
 const gameState = {
@@ -32,9 +31,11 @@ const gameState = {
         brakeBalance: 50,
         tirePressure: 23
     },
-    prevVelocity: new CANNON.Vec3(),
-    smoothCameraPosition: new THREE.Vector3(),
-    smoothCameraTarget: new THREE.Vector3()
+    // Arcade physics state
+    velocity: 0,
+    rotation: 0,
+    position: new THREE.Vector3(230, 0.5, 0),
+    prevSpeed: 0
 };
 
 // Controls with smooth interpolation
@@ -90,30 +91,6 @@ scene.add(sunLight);
 const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x545454, 0.5);
 scene.add(hemisphereLight);
 
-// Physics World with better settings
-const world = new CANNON.World();
-world.gravity.set(0, -9.81, 0); // Use realistic gravity instead of -30
-world.broadphase = new CANNON.SAPBroadphase(world);
-world.defaultContactMaterial.friction = 0.3;
-
-// Allow sleeping for better performance
-world.allowSleep = true;
-world.solver.iterations = 20; // Increased for stiff contact stability
-world.solver.tolerance = 0.01;
-
-// Materials with realistic properties (NO bounce)
-const groundMaterial = new CANNON.Material('ground');
-const wheelMaterial = new CANNON.Material('wheel');
-const wheelGroundContact = new CANNON.ContactMaterial(wheelMaterial, groundMaterial, {
-    friction: 1.5,
-    restitution: 0, // Zero bounce!
-    contactEquationStiffness: 1e6, // Reduced 10x to prevent solver instability
-    contactEquationRelaxation: 8, // Increased for softer, more stable contact
-    frictionEquationStiffness: 1e6, // Reduced 10x to prevent instability
-    frictionEquationRelaxation: 8
-});
-world.addContactMaterial(wheelGroundContact);
-
 // Create Monaco-inspired Circuit with full scenery
 function createCircuit() {
     // Track surface with better texture
@@ -127,13 +104,6 @@ function createCircuit() {
     track.rotation.x = -Math.PI / 2;
     track.receiveShadow = true;
     scene.add(track);
-
-    // Physics ground
-    const groundShape = new CANNON.Plane();
-    const groundBody = new CANNON.Body({ mass: 0, material: groundMaterial });
-    groundBody.addShape(groundShape);
-    groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-    world.addBody(groundBody);
 
     // Track outline with barriers
     const points = [];
@@ -885,62 +855,10 @@ function createF1Car() {
 
     scene.add(car);
 
-    // Advanced Physics body
-    const chassisShape = new CANNON.Box(new CANNON.Vec3(1, 0.4, 2.25));
-    const chassisBody = new CANNON.Body({
-        mass: 740,
-        material: new CANNON.Material()
-    });
-    chassisBody.addShape(chassisShape);
-    chassisBody.position.set(230, 2, 0);
-    chassisBody.linearDamping = 0.3; // Moderate air resistance
-    chassisBody.angularDamping = 0.8; // Prevent spinning
-    chassisBody.sleepSpeedLimit = 0.1; // Allow body to sleep when very slow
-    chassisBody.sleepTimeLimit = 0.1; // Sleep quickly when below speed limit
-    world.addBody(chassisBody);
+    // Set initial position
+    car.position.copy(gameState.position);
 
-    // Advanced vehicle with better suspension
-    const vehicle = new CANNON.RaycastVehicle({
-        chassisBody: chassisBody,
-        indexRightAxis: 0,
-        indexUpAxis: 1,
-        indexForwardAxis: 2
-    });
-
-    // Suspension with correct geometry (chassis at y=2, wheel radius=0.4, ground at y=0)
-    const wheelOptions = {
-        radius: 0.4,
-        directionLocal: new CANNON.Vec3(0, -1, 0),
-        suspensionStiffness: 50, // Reduced further for stability
-        suspensionRestLength: 1.6, // Positions wheel bottom exactly at ground level
-        frictionSlip: 3,
-        dampingRelaxation: 20, // Heavily damped to eliminate oscillation
-        dampingCompression: 25, // Heavily damped to eliminate oscillation
-        maxSuspensionForce: 100000,
-        rollInfluence: 0.01,
-        axleLocal: new CANNON.Vec3(-1, 0, 0),
-        chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-        maxSuspensionTravel: 0.3, // Reasonable travel
-        customSlidingRotationalSpeed: -30,
-        useCustomSlidingRotationalSpeed: true
-    };
-
-    // Add wheels
-    wheelOptions.chassisConnectionPointLocal.set(-1, 0, 1.5);
-    vehicle.addWheel(wheelOptions);
-
-    wheelOptions.chassisConnectionPointLocal.set(1, 0, 1.5);
-    vehicle.addWheel(wheelOptions);
-
-    wheelOptions.chassisConnectionPointLocal.set(-1, 0, -1.5);
-    vehicle.addWheel(wheelOptions);
-
-    wheelOptions.chassisConnectionPointLocal.set(1, 0, -1.5);
-    vehicle.addWheel(wheelOptions);
-
-    vehicle.addToWorld(world);
-
-    return { mesh: car, body: chassisBody, vehicle: vehicle };
+    return { mesh: car, wheels: car.wheels };
 }
 
 const playerCar = createF1Car();
@@ -957,10 +875,11 @@ document.addEventListener('keydown', (e) => {
         cameraMode = cameraMode === 'chase' ? 'cockpit' : 'chase';
     }
     if (e.key === 'r' || e.key === 'R') {
-        playerCar.body.position.set(230, 2, 0);
-        playerCar.body.velocity.set(0, 0, 0);
-        playerCar.body.angularVelocity.set(0, 0, 0);
-        playerCar.body.quaternion.setFromEuler(0, 0, 0);
+        gameState.position.set(230, 0.5, 0);
+        gameState.velocity = 0;
+        gameState.rotation = 0;
+        playerCar.mesh.position.copy(gameState.position);
+        playerCar.mesh.rotation.y = 0;
     }
 });
 
@@ -973,18 +892,16 @@ document.addEventListener('keyup', (e) => {
     if (e.key === 'e' || e.key === 'E') controls.ers = false;
 });
 
-// Update HUD with G-force
+// Update HUD
 function updateHUD() {
-    const velocity = playerCar.body.velocity;
-    const speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z) * 3.6;
+    const speed = Math.abs(gameState.velocity);
     gameState.speed = speed;
 
-    // Calculate G-force (extremely reduced and smoothed to prevent instability)
-    const deltaV = new CANNON.Vec3();
-    deltaV.copy(velocity).vsub(gameState.prevVelocity);
-    const instantGforce = (deltaV.length() / (1/60) / 9.81) * 0.1; // Scale down to 10% (was 30%)
-    gameState.gforce = gameState.gforce * 0.95 + instantGforce * 0.05; // Extreme smoothing (was 0.9/0.1)
-    gameState.prevVelocity.copy(velocity);
+    // Calculate G-force from acceleration
+    const deltaSpeed = speed - gameState.prevSpeed;
+    const instantGforce = Math.abs(deltaSpeed) / 9.81;
+    gameState.gforce = gameState.gforce * 0.9 + instantGforce * 0.1;
+    gameState.prevSpeed = speed;
 
     // Calculate RPM based on speed (very low for stability)
     const maxRPM = 3000; // Much lower to prevent instability
@@ -1060,7 +977,7 @@ function formatTime(seconds) {
 
 // Check lap completion
 function checkLapCompletion() {
-    const carPos = playerCar.body.position;
+    const carPos = gameState.position;
 
     gameState.checkpoints.forEach((checkpoint, index) => {
         const dist = Math.sqrt(
@@ -1129,16 +1046,13 @@ function animate(currentTime) {
         if (controls.right) targetSteering = -1;
         controls.currentSteering += (targetSteering - controls.currentSteering) * lerpFactor;
 
-        // Sync mesh with physics
-        playerCar.mesh.position.copy(playerCar.body.position);
-        playerCar.mesh.quaternion.copy(playerCar.body.quaternion);
+        // Update arcade physics
+        updateArcadePhysics(deltaTime);
 
-        // Update wheel visuals
-        playerCar.vehicle.wheelInfos.forEach((wheel, index) => {
-            playerCar.vehicle.updateWheelTransform(index);
-            const t = wheel.worldTransform;
-            playerCar.mesh.wheels[index].position.copy(t.position);
-            playerCar.mesh.wheels[index].quaternion.copy(t.quaternion);
+        // Update wheel rotation visuals
+        const wheelRotationSpeed = gameState.velocity * 0.1;
+        playerCar.wheels.forEach((wheel, index) => {
+            wheel.rotation.x += wheelRotationSpeed * deltaTime;
         });
 
         // Smooth camera movement
@@ -1151,76 +1065,72 @@ function animate(currentTime) {
 }
 
 function updatePhysics(dt) {
-    // Step physics
-    world.step(dt);
+    // Legacy function - now uses arcade physics
+}
 
-    // Kill micro-movements when car is stationary
-    const velocity = playerCar.body.velocity;
-    const horizontalSpeed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+function updateArcadePhysics(dt) {
+    const maxSpeed = 330; // km/h
+    const acceleration = 120; // km/h per second
+    const braking = 200; // km/h per second
+    const drag = 20; // air resistance
+    const turnSpeed = 2.0; // radians per second
 
-    if (horizontalSpeed < 0.05 && !controls.throttle && !controls.brake) {
-        playerCar.body.velocity.x = 0;
-        playerCar.body.velocity.z = 0;
-        playerCar.body.angularVelocity.set(0, 0, 0);
-    }
+    // Throttle
+    if (controls.currentThrottle > 0.1) {
+        let accel = acceleration * controls.currentThrottle;
 
-    // Direct drive engine with traction control
-    const maxForce = 15000; // Adjusted for realistic gravity
+        // ERS boost
+        if (controls.ers && gameState.ers > 0) {
+            accel *= 1.25;
+            gameState.ers -= 0.3;
+        }
 
-    // Progressive power delivery based on speed (traction control)
-    const speedRatio = Math.min(1, gameState.speed / 200);
-    const tractionMultiplier = 0.3 + (speedRatio * 0.7); // Smooth power delivery
+        // DRS boost
+        if (controls.drs && gameState.drsAvailable) {
+            gameState.drsActive = true;
+            accel *= 1.15;
+        } else {
+            gameState.drsActive = false;
+        }
 
-    let engineForce = controls.currentThrottle * maxForce * tractionMultiplier;
-
-    // ERS boost
-    if (controls.ers && gameState.ers > 0) {
-        engineForce *= 1.25;
-        gameState.ers -= 0.3;
-    }
-
-    // DRS (reduces drag)
-    if (controls.drs && gameState.drsAvailable) {
-        gameState.drsActive = true;
-        engineForce *= 1.15;
+        gameState.velocity += accel * dt;
+        gameState.fuel -= 0.003 * controls.currentThrottle;
     } else {
         gameState.drsActive = false;
     }
 
-    // Apply engine force
-    playerCar.vehicle.applyEngineForce(-engineForce, 2);
-    playerCar.vehicle.applyEngineForce(-engineForce, 3);
-
-    // Advanced braking with brake balance
-    const brakeForce = controls.currentBrake * 500;
-    const brakeBalance = gameState.carSetup.brakeBalance / 100;
-    playerCar.vehicle.setBrake(brakeForce * brakeBalance, 0);
-    playerCar.vehicle.setBrake(brakeForce * brakeBalance, 1);
-    playerCar.vehicle.setBrake(brakeForce * (1 - brakeBalance), 2);
-    playerCar.vehicle.setBrake(brakeForce * (1 - brakeBalance), 3);
-
-    // Advanced steering with speed sensitivity
-    const speedFactor = Math.max(0.3, 1 - gameState.speed / 300);
-    const maxSteerVal = 0.6 * speedFactor;
-    const steerValue = controls.currentSteering * maxSteerVal;
-    playerCar.vehicle.setSteeringValue(steerValue, 0);
-    playerCar.vehicle.setSteeringValue(steerValue, 1);
-
-    // Aerodynamic downforce disabled to prevent bouncing
-    // if (gameState.speed > 5) {
-    //     const downforceCoeff = (gameState.carSetup.frontWing + gameState.carSetup.rearWing) / 40;
-    //     const speedSquared = gameState.speed * gameState.speed;
-    //     const downforce = downforceCoeff * speedSquared * 0.3;
-    //     playerCar.body.applyForce(new CANNON.Vec3(0, -downforce, 0), playerCar.body.position);
-    // }
-
-    // Fixed gear - always in top gear for direct drive
-    gameState.gear = 8;
-
-    // Fuel consumption
-    if (controls.currentThrottle > 0.1) {
-        gameState.fuel -= 0.003 * controls.currentThrottle;
+    // Braking
+    if (controls.currentBrake > 0.1) {
+        gameState.velocity -= braking * controls.currentBrake * dt;
     }
+
+    // Air resistance (drag)
+    const dragForce = (gameState.velocity / maxSpeed) * drag;
+    gameState.velocity -= dragForce * dt;
+
+    // Clamp velocity
+    gameState.velocity = Math.max(0, Math.min(maxSpeed, gameState.velocity));
+
+    // Steering - speed-sensitive
+    const speedFactor = Math.max(0.3, 1 - gameState.velocity / maxSpeed);
+    gameState.rotation += controls.currentSteering * turnSpeed * speedFactor * dt;
+
+    // Move car forward in direction it's facing
+    const forward = new THREE.Vector3(
+        Math.sin(gameState.rotation),
+        0,
+        Math.cos(gameState.rotation)
+    );
+
+    gameState.position.x += forward.x * gameState.velocity * dt * (1/3.6); // Convert km/h to m/s
+    gameState.position.z += forward.z * gameState.velocity * dt * (1/3.6);
+
+    // Update car mesh
+    playerCar.mesh.position.copy(gameState.position);
+    playerCar.mesh.rotation.y = gameState.rotation;
+
+    // Fixed gear
+    gameState.gear = 8;
 
     // ERS recharge
     if (!controls.ers && gameState.ers < 100) {
