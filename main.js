@@ -1269,12 +1269,16 @@ function updateSetupValues() {
     document.getElementById('tp-value').textContent = gameState.carSetup.tirePressure + ' PSI';
 }
 
-document.querySelectorAll('#setup-menu input[type="range"]').forEach(input => {
-    input.addEventListener('input', updateSetupValues);
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('#setup-menu input[type="range"]').forEach(input => {
+        input.addEventListener('input', updateSetupValues);
+    });
 });
 
 // Start simulation
 window.startSimulation = function() {
+    console.log('Starting simulation...');
     document.getElementById('start-screen').style.display = 'none';
     gameState.running = true;
     gameState.lapStartTime = Date.now();
