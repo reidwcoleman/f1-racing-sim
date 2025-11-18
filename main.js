@@ -993,7 +993,7 @@ function updateHUD() {
     document.getElementById('tel-gear').textContent = 'AUTO';
     document.getElementById('tel-throttle').textContent = Math.round(controls.currentThrottle * 100) + '%';
     document.getElementById('tel-brake').textContent = Math.round(controls.currentBrake * 100) + '%';
-    document.getElementById('tel-gforce').textContent = gforce.toFixed(2) + 'G';
+    document.getElementById('tel-gforce').textContent = gameState.gforce.toFixed(2) + 'G';
     document.getElementById('tel-fuel').textContent = Math.round(gameState.fuel) + 'kg';
     document.getElementById('tel-lap').textContent = gameState.currentLap + ' / ' + gameState.totalLaps;
 
