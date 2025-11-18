@@ -92,24 +92,25 @@ scene.add(hemisphereLight);
 
 // Physics World with better settings
 const world = new CANNON.World();
-world.gravity.set(0, -30, 0);
+world.gravity.set(0, -9.81, 0); // Use realistic gravity instead of -30
 world.broadphase = new CANNON.SAPBroadphase(world);
 world.defaultContactMaterial.friction = 0.3;
 
 // Allow sleeping for better performance
 world.allowSleep = true;
-world.solver.iterations = 15; // More iterations for stability
-world.solver.tolerance = 0.001;
+world.solver.iterations = 10; // Moderate iterations for stability
+world.solver.tolerance = 0.01;
 
-// Materials with realistic properties
+// Materials with realistic properties (NO bounce)
 const groundMaterial = new CANNON.Material('ground');
 const wheelMaterial = new CANNON.Material('wheel');
 const wheelGroundContact = new CANNON.ContactMaterial(wheelMaterial, groundMaterial, {
-    friction: 1.8,
-    restitution: 0.05,
-    contactEquationStiffness: 1e8,
-    contactEquationRelaxation: 3,
-    frictionEquationStiffness: 1e8
+    friction: 1.5,
+    restitution: 0, // Zero bounce!
+    contactEquationStiffness: 1e7, // Lower stiffness for stability
+    contactEquationRelaxation: 4, // Higher relaxation = softer contact
+    frictionEquationStiffness: 1e7,
+    frictionEquationRelaxation: 4
 });
 world.addContactMaterial(wheelGroundContact);
 
@@ -892,9 +893,9 @@ function createF1Car() {
     });
     chassisBody.addShape(chassisShape);
     chassisBody.position.set(230, 2, 0);
-    chassisBody.linearDamping = 0.99; // Extreme damping to kill all movement when stationary
-    chassisBody.angularDamping = 0.99; // Extreme angular damping
-    chassisBody.sleepSpeedLimit = 0.5; // Allow body to sleep when slow
+    chassisBody.linearDamping = 0.3; // Moderate air resistance
+    chassisBody.angularDamping = 0.8; // Prevent spinning
+    chassisBody.sleepSpeedLimit = 0.1; // Allow body to sleep when very slow
     chassisBody.sleepTimeLimit = 0.1; // Sleep quickly when below speed limit
     world.addBody(chassisBody);
 
@@ -910,18 +911,19 @@ function createF1Car() {
     const wheelOptions = {
         radius: 0.4,
         directionLocal: new CANNON.Vec3(0, -1, 0),
-        suspensionStiffness: 20, // Very soft suspension
-        suspensionRestLength: 0.25,
-        frictionSlip: 8, // Realistic grip
-        dampingRelaxation: 100, // Maximum damping to kill oscillation
-        dampingCompression: 100, // Maximum compression damping
+        suspensionStiffness: 30, // Adjusted for lower gravity
+        suspensionRestLength: 0.3,
+        frictionSlip: 2, // Realistic grip
+        dampingRelaxation: 10, // Heavy damping
+        dampingCompression: 10, // Heavy compression damping
         maxSuspensionForce: 100000,
         rollInfluence: 0.01,
         axleLocal: new CANNON.Vec3(-1, 0, 0),
         chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-        maxSuspensionTravel: 0.05, // Very little travel to prevent bounce
-        customSlidingRotationalSpeed: -0.1,
-        useCustomSlidingRotationalSpeed: true
+        maxSuspensionTravel: 0.1,
+        customSlidingRotationalSpeed: -0.5,
+        useCustomSlidingRotationalSpeed: true,
+        material: wheelMaterial // Use the wheel material for proper contact
     };
 
     // Add wheels
@@ -1165,12 +1167,12 @@ function updatePhysics(dt) {
         playerCar.body.torque.set(0, 0, 0);
     }
 
-    // Direct drive engine with traction control (arcade-smooth acceleration)
-    const maxForce = 50000; // Balanced power for smooth, controlled acceleration
+    // Direct drive engine with traction control
+    const maxForce = 15000; // Adjusted for realistic gravity
 
-    // Progressive power delivery based on speed (super smooth traction control)
-    const speedRatio = Math.min(1, gameState.speed / 200); // Gradual ramp from 0-200 kph
-    const tractionMultiplier = 0.2 + (speedRatio * 0.8); // 20% power at low speed, 100% at 200+ kph
+    // Progressive power delivery based on speed (traction control)
+    const speedRatio = Math.min(1, gameState.speed / 200);
+    const tractionMultiplier = 0.3 + (speedRatio * 0.7); // Smooth power delivery
 
     let engineForce = controls.currentThrottle * maxForce * tractionMultiplier;
 
@@ -1207,10 +1209,10 @@ function updatePhysics(dt) {
     playerCar.vehicle.setSteeringValue(steerValue, 0);
     playerCar.vehicle.setSteeringValue(steerValue, 1);
 
-    // Aerodynamic downforce (reduced to prevent tipping)
+    // Aerodynamic downforce (adjusted for realistic gravity)
     const downforceCoeff = (gameState.carSetup.frontWing + gameState.carSetup.rearWing) / 40;
     const speedSquared = gameState.speed * gameState.speed;
-    const downforce = downforceCoeff * speedSquared * 0.02; // Reduced from 0.05
+    const downforce = downforceCoeff * speedSquared * 0.5; // Increased for realistic gravity
     playerCar.body.applyForce(new CANNON.Vec3(0, -downforce, 0), playerCar.body.position);
 
     // Fixed gear - always in top gear for direct drive
