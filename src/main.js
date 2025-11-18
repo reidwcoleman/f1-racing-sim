@@ -98,7 +98,7 @@ world.defaultContactMaterial.friction = 0.3;
 
 // Allow sleeping for better performance
 world.allowSleep = true;
-world.solver.iterations = 10; // Moderate iterations for stability
+world.solver.iterations = 20; // Increased for stiff contact stability
 world.solver.tolerance = 0.01;
 
 // Materials with realistic properties (NO bounce)
@@ -107,10 +107,10 @@ const wheelMaterial = new CANNON.Material('wheel');
 const wheelGroundContact = new CANNON.ContactMaterial(wheelMaterial, groundMaterial, {
     friction: 1.5,
     restitution: 0, // Zero bounce!
-    contactEquationStiffness: 1e7, // Lower stiffness for stability
-    contactEquationRelaxation: 4, // Higher relaxation = softer contact
-    frictionEquationStiffness: 1e7,
-    frictionEquationRelaxation: 4
+    contactEquationStiffness: 1e6, // Reduced 10x to prevent solver instability
+    contactEquationRelaxation: 8, // Increased for softer, more stable contact
+    frictionEquationStiffness: 1e6, // Reduced 10x to prevent instability
+    frictionEquationRelaxation: 8
 });
 world.addContactMaterial(wheelGroundContact);
 
@@ -911,11 +911,11 @@ function createF1Car() {
     const wheelOptions = {
         radius: 0.4,
         directionLocal: new CANNON.Vec3(0, -1, 0),
-        suspensionStiffness: 60, // Reduced to prevent bouncing
+        suspensionStiffness: 50, // Reduced further for stability
         suspensionRestLength: 1.6, // Positions wheel bottom exactly at ground level
         frictionSlip: 3,
-        dampingRelaxation: 12, // Increased to prevent oscillation
-        dampingCompression: 15, // Increased to prevent oscillation
+        dampingRelaxation: 20, // Heavily damped to eliminate oscillation
+        dampingCompression: 25, // Heavily damped to eliminate oscillation
         maxSuspensionForce: 100000,
         rollInfluence: 0.01,
         axleLocal: new CANNON.Vec3(-1, 0, 0),
