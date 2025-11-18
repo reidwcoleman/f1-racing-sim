@@ -976,15 +976,15 @@ function updateHUD() {
     const speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z) * 3.6;
     gameState.speed = speed;
 
-    // Calculate G-force (smoothed for more realistic display)
+    // Calculate G-force (heavily smoothed and reduced to prevent instability)
     const deltaV = new CANNON.Vec3();
     deltaV.copy(velocity).vsub(gameState.prevVelocity);
-    const instantGforce = deltaV.length() / (1/60) / 9.81; // Convert to G's
-    gameState.gforce = gameState.gforce * 0.7 + instantGforce * 0.3; // Smooth it out
+    const instantGforce = (deltaV.length() / (1/60) / 9.81) * 0.3; // Scale down to 30% to reduce tipping
+    gameState.gforce = gameState.gforce * 0.9 + instantGforce * 0.1; // Heavy smoothing
     gameState.prevVelocity.copy(velocity);
 
-    // Calculate RPM based on speed (reduced max RPM for smoother feel)
-    const maxRPM = 10000;
+    // Calculate RPM based on speed (much lower for stability)
+    const maxRPM = 6000; // Reduced from 10000
     gameState.rpm = Math.min(maxRPM, (speed / 330) * maxRPM);
 
     // Update telemetry
@@ -1151,12 +1151,12 @@ function updatePhysics(dt) {
     // Step physics
     world.step(dt);
 
-    // Direct drive engine with traction control
-    const maxForce = 250000; // Realistic F1 power for smoother acceleration
+    // Direct drive engine with traction control (reduced power for stability)
+    const maxForce = 120000; // Much lower to prevent tipping
 
     // Progressive power delivery based on speed (traction control)
-    const speedRatio = Math.min(1, gameState.speed / 100); // Ramp up power from 0-100 kph
-    const tractionMultiplier = 0.5 + (speedRatio * 0.5); // 50% power at low speed, 100% at 100+ kph
+    const speedRatio = Math.min(1, gameState.speed / 120); // Ramp up power from 0-120 kph
+    const tractionMultiplier = 0.4 + (speedRatio * 0.6); // 40% power at low speed, 100% at 120+ kph
 
     let engineForce = controls.currentThrottle * maxForce * tractionMultiplier;
 
@@ -1193,10 +1193,10 @@ function updatePhysics(dt) {
     playerCar.vehicle.setSteeringValue(steerValue, 0);
     playerCar.vehicle.setSteeringValue(steerValue, 1);
 
-    // Aerodynamic downforce (increases with speed and wing settings)
-    const downforceCoeff = (gameState.carSetup.frontWing + gameState.carSetup.rearWing) / 20;
+    // Aerodynamic downforce (reduced to prevent tipping)
+    const downforceCoeff = (gameState.carSetup.frontWing + gameState.carSetup.rearWing) / 40;
     const speedSquared = gameState.speed * gameState.speed;
-    const downforce = downforceCoeff * speedSquared * 0.05;
+    const downforce = downforceCoeff * speedSquared * 0.02; // Reduced from 0.05
     playerCar.body.applyForce(new CANNON.Vec3(0, -downforce, 0), playerCar.body.position);
 
     // Fixed gear - always in top gear for direct drive
