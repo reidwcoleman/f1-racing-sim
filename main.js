@@ -864,15 +864,15 @@ function updateHUD() {
     const speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z) * 3.6;
     gameState.speed = speed;
 
-    // Calculate G-force
+    // Calculate G-force (smoothed for more realistic display)
     const deltaV = new CANNON.Vec3();
     deltaV.copy(velocity).vsub(gameState.prevVelocity);
-    const gforce = deltaV.length() / (1/60) / 9.81; // Convert to G's
-    gameState.gforce = gforce;
+    const instantGforce = deltaV.length() / (1/60) / 9.81; // Convert to G's
+    gameState.gforce = gameState.gforce * 0.7 + instantGforce * 0.3; // Smooth it out
     gameState.prevVelocity.copy(velocity);
 
-    // Calculate RPM based on speed (direct drive, no gears)
-    const maxRPM = 15000;
+    // Calculate RPM based on speed (reduced max RPM for smoother feel)
+    const maxRPM = 10000;
     gameState.rpm = Math.min(maxRPM, (speed / 330) * maxRPM);
 
     // Update telemetry
@@ -1040,11 +1040,11 @@ function updatePhysics(dt) {
     world.step(dt);
 
     // Direct drive engine with traction control
-    const maxForce = 800000; // Powerful but controlled
+    const maxForce = 500000; // Smoother, more realistic power
 
     // Progressive power delivery based on speed (traction control)
-    const speedRatio = Math.min(1, gameState.speed / 50); // Ramp up power from 0-50 kph
-    const tractionMultiplier = 0.3 + (speedRatio * 0.7); // 30% power at low speed, 100% at 50+ kph
+    const speedRatio = Math.min(1, gameState.speed / 80); // Ramp up power from 0-80 kph
+    const tractionMultiplier = 0.4 + (speedRatio * 0.6); // 40% power at low speed, 100% at 80+ kph
 
     let engineForce = controls.currentThrottle * maxForce * tractionMultiplier;
 
