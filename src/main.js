@@ -3,6 +3,9 @@ import * as THREE from 'three';
 // Game State
 const gameState = {
     running: false,
+    raceStarted: false,
+    startLightSequence: 0, // 0 = waiting, 1-5 = red lights, 6 = green/GO!
+    startLightTimer: 0,
     currentLap: 1,
     totalLaps: 10,
     lapStartTime: 0,
@@ -38,6 +41,9 @@ const gameState = {
     prevSpeed: 0
 };
 
+// Starting light gantry meshes (will be created later)
+let startLightGantry = null;
+
 // Controls with smooth interpolation
 const controls = {
     throttle: false,
@@ -53,8 +59,41 @@ const controls = {
 
 // Scene Setup
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.Fog(0x87ceeb, 100, 1000);
+
+// Create stunning gradient sky
+const skyGeometry = new THREE.SphereGeometry(1000, 32, 32);
+const skyMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+        topColor: { value: new THREE.Color(0x0077ff) },
+        bottomColor: { value: new THREE.Color(0xffffff) },
+        offset: { value: 400 },
+        exponent: { value: 0.6 }
+    },
+    vertexShader: `
+        varying vec3 vWorldPosition;
+        void main() {
+            vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+            vWorldPosition = worldPosition.xyz;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform vec3 topColor;
+        uniform vec3 bottomColor;
+        uniform float offset;
+        uniform float exponent;
+        varying vec3 vWorldPosition;
+        void main() {
+            float h = normalize(vWorldPosition + offset).y;
+            gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
+        }
+    `,
+    side: THREE.BackSide
+});
+const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+scene.add(sky);
+
+scene.fog = new THREE.Fog(0x87ceeb, 200, 1200);
 
 // Camera
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
@@ -90,6 +129,44 @@ scene.add(sunLight);
 
 const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x545454, 0.5);
 scene.add(hemisphereLight);
+
+// Add volumetric clouds
+function createClouds() {
+    const cloudGroup = new THREE.Group();
+    const cloudMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.7,
+        roughness: 1,
+        metalness: 0
+    });
+
+    // Create cloud clusters around the scene
+    for (let i = 0; i < 40; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 400 + Math.random() * 300;
+        const height = 80 + Math.random() * 100;
+
+        // Each cloud is made of multiple spheres
+        for (let j = 0; j < 5; j++) {
+            const cloudGeometry = new THREE.SphereGeometry(20 + Math.random() * 30, 8, 8);
+            const cloud = new THREE.Mesh(cloudGeometry, cloudMaterial);
+
+            cloud.position.set(
+                Math.cos(angle) * distance + (Math.random() - 0.5) * 50,
+                height + (Math.random() - 0.5) * 20,
+                Math.sin(angle) * distance + (Math.random() - 0.5) * 50
+            );
+
+            cloud.scale.set(1, 0.6, 1);
+            cloudGroup.add(cloud);
+        }
+    }
+
+    scene.add(cloudGroup);
+}
+
+createClouds();
 
 // Create Monaco-inspired Circuit with full scenery
 function createCircuit() {
@@ -438,7 +515,7 @@ function createPitBuilding() {
     }
 }
 
-// Create start/finish line
+// Create start/finish line with starting lights gantry
 function createStartFinishLine(trackRadius) {
     // Checkered pattern
     const checkerSize = 3;
@@ -461,6 +538,131 @@ function createStartFinishLine(trackRadius) {
             scene.add(checker);
         }
     }
+
+    // Create F1-style starting light gantry
+    startLightGantry = new THREE.Group();
+
+    // Gantry structure
+    const gantryMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1a1a1a,
+        metalness: 0.8,
+        roughness: 0.3
+    });
+
+    // Main horizontal beam
+    const beamGeometry = new THREE.BoxGeometry(0.4, 0.4, 12);
+    const beam = new THREE.Mesh(beamGeometry, gantryMaterial);
+    beam.position.set(trackRadius * 1.15, 8, 0);
+    beam.castShadow = true;
+    startLightGantry.add(beam);
+
+    // Support poles
+    const poleGeometry = new THREE.CylinderGeometry(0.25, 0.25, 8, 16);
+    const poleL = new THREE.Mesh(poleGeometry, gantryMaterial);
+    poleL.position.set(trackRadius * 1.15, 4, -6);
+    poleL.castShadow = true;
+    startLightGantry.add(poleL);
+
+    const poleR = new THREE.Mesh(poleGeometry, gantryMaterial);
+    poleR.position.set(trackRadius * 1.15, 4, 6);
+    poleR.castShadow = true;
+    startLightGantry.add(poleR);
+
+    // Create 5 sets of red lights (F1 style)
+    startLightGantry.lights = [];
+    for (let i = 0; i < 5; i++) {
+        const lightSet = new THREE.Group();
+
+        // Light panel background
+        const panelGeometry = new THREE.BoxGeometry(1.5, 1.8, 0.3);
+        const panelMaterial = new THREE.MeshStandardMaterial({
+            color: 0x0a0a0a,
+            metalness: 0.7,
+            roughness: 0.4
+        });
+        const panel = new THREE.Mesh(panelGeometry, panelMaterial);
+        lightSet.add(panel);
+
+        // Red lights (3 circles vertically arranged)
+        const lightPositions = [-0.5, 0, 0.5];
+        const redLights = [];
+
+        lightPositions.forEach(yOffset => {
+            // Light housing (dark when off)
+            const lightGeometry = new THREE.CircleGeometry(0.35, 32);
+            const lightMaterial = new THREE.MeshStandardMaterial({
+                color: 0x2a0000,
+                emissive: 0x000000,
+                emissiveIntensity: 0,
+                metalness: 0.3,
+                roughness: 0.7
+            });
+            const light = new THREE.Mesh(lightGeometry, lightMaterial);
+            light.position.set(0, yOffset, 0.16);
+            lightSet.add(light);
+            redLights.push(light);
+
+            // Point light for glow effect
+            const pointLight = new THREE.PointLight(0xff0000, 0, 20);
+            pointLight.position.set(0, yOffset, 0.5);
+            lightSet.add(pointLight);
+        });
+
+        lightSet.position.set(trackRadius * 1.15, 8, -4 + i * 2);
+        lightSet.rotation.y = Math.PI;
+        startLightGantry.add(lightSet);
+
+        startLightGantry.lights.push({
+            meshes: redLights,
+            pointLights: lightSet.children.filter(c => c instanceof THREE.PointLight)
+        });
+    }
+
+    // Green light set (centered above)
+    const greenLightSet = new THREE.Group();
+    const greenPanelGeometry = new THREE.BoxGeometry(2.5, 1.5, 0.3);
+    const greenPanel = new THREE.Mesh(greenPanelGeometry, new THREE.MeshStandardMaterial({
+        color: 0x0a0a0a,
+        metalness: 0.7,
+        roughness: 0.4
+    }));
+    greenLightSet.add(greenPanel);
+
+    // Green lights (3 circles horizontally arranged)
+    const greenLightPositions = [-0.7, 0, 0.7];
+    const greenLights = [];
+    const greenPointLights = [];
+
+    greenLightPositions.forEach(xOffset => {
+        const greenLightGeometry = new THREE.CircleGeometry(0.4, 32);
+        const greenLightMaterial = new THREE.MeshStandardMaterial({
+            color: 0x002a00,
+            emissive: 0x000000,
+            emissiveIntensity: 0,
+            metalness: 0.3,
+            roughness: 0.7
+        });
+        const greenLight = new THREE.Mesh(greenLightGeometry, greenLightMaterial);
+        greenLight.position.set(xOffset, 0, 0.16);
+        greenLightSet.add(greenLight);
+        greenLights.push(greenLight);
+
+        const greenPointLight = new THREE.PointLight(0x00ff00, 0, 30);
+        greenPointLight.position.set(xOffset, 0, 0.5);
+        greenLightSet.add(greenPointLight);
+        greenPointLights.push(greenPointLight);
+    });
+
+    greenLightSet.position.set(trackRadius * 1.15, 10, 0);
+    greenLightSet.rotation.y = Math.PI;
+    startLightGantry.add(greenLightSet);
+
+    startLightGantry.greenLights = {
+        meshes: greenLights,
+        pointLights: greenPointLights
+    };
+
+    scene.add(startLightGantry);
 }
 
 // Create track curbs (red and white stripes)
@@ -1030,6 +1232,9 @@ function animate(currentTime) {
     accumulator += deltaTime;
 
     if (gameState.running) {
+        // Update starting lights sequence
+        updateStartingLights(deltaTime);
+
         // Fixed timestep physics (prevents glitching)
         while (accumulator >= fixedTimeStep) {
             updatePhysics(fixedTimeStep);
@@ -1068,16 +1273,140 @@ function updatePhysics(dt) {
     // Legacy function - now uses arcade physics
 }
 
+// Update starting lights sequence
+function updateStartingLights(dt) {
+    if (!gameState.raceStarted && gameState.running) {
+        // Show starting lights HUD
+        const hudElement = document.getElementById('start-lights-hud');
+        if (hudElement) {
+            hudElement.style.display = 'flex';
+        }
+
+        gameState.startLightTimer += dt;
+
+        // Starting sequence timing (1 second per light, then random delay for green)
+        if (gameState.startLightSequence === 0 && gameState.startLightTimer >= 1.0) {
+            gameState.startLightSequence = 1;
+            gameState.startLightTimer = 0;
+        } else if (gameState.startLightSequence >= 1 && gameState.startLightSequence < 5 && gameState.startLightTimer >= 1.0) {
+            gameState.startLightSequence++;
+            gameState.startLightTimer = 0;
+        } else if (gameState.startLightSequence === 5 && gameState.startLightTimer >= (2 + Math.random() * 2)) {
+            // Random delay between 2-4 seconds before green (realistic F1)
+            gameState.startLightSequence = 6; // GREEN / GO!
+            gameState.raceStarted = true;
+            gameState.lapStartTime = Date.now();
+        }
+
+        // Update HUD lights
+        for (let i = 1; i <= 5; i++) {
+            const lightElement = document.getElementById(`light-${i}`);
+            if (lightElement) {
+                if (i <= gameState.startLightSequence && gameState.startLightSequence < 6) {
+                    lightElement.classList.add('red');
+                    lightElement.classList.remove('green');
+                } else if (gameState.startLightSequence === 6) {
+                    lightElement.classList.remove('red');
+                    lightElement.classList.add('green');
+                } else {
+                    lightElement.classList.remove('red', 'green');
+                }
+            }
+        }
+
+        // Show GO message
+        const messageElement = document.getElementById('start-message');
+        if (messageElement && gameState.startLightSequence === 6) {
+            messageElement.style.display = 'block';
+        }
+
+        // Hide HUD after race starts
+        if (gameState.raceStarted && gameState.startLightTimer >= 2.0) {
+            if (hudElement) {
+                hudElement.style.display = 'none';
+            }
+        }
+
+        // Update physical lights based on sequence
+        if (startLightGantry && startLightGantry.lights) {
+            // Red lights - turn on progressively
+            for (let i = 0; i < 5; i++) {
+                const isOn = i < gameState.startLightSequence && gameState.startLightSequence < 6;
+                const intensity = isOn ? 1.0 : 0;
+
+                startLightGantry.lights[i].meshes.forEach(mesh => {
+                    mesh.material.color.setHex(isOn ? 0xff0000 : 0x2a0000);
+                    mesh.material.emissive.setHex(isOn ? 0xff0000 : 0x000000);
+                    mesh.material.emissiveIntensity = isOn ? 0.8 : 0;
+                });
+
+                startLightGantry.lights[i].pointLights.forEach(light => {
+                    light.intensity = isOn ? 8 : 0;
+                });
+            }
+
+            // Green lights - turn on when sequence reaches 6
+            const greenOn = gameState.startLightSequence === 6;
+            startLightGantry.greenLights.meshes.forEach(mesh => {
+                mesh.material.color.setHex(greenOn ? 0x00ff00 : 0x002a00);
+                mesh.material.emissive.setHex(greenOn ? 0x00ff00 : 0x000000);
+                mesh.material.emissiveIntensity = greenOn ? 1.0 : 0;
+            });
+
+            startLightGantry.greenLights.pointLights.forEach(light => {
+                light.intensity = greenOn ? 15 : 0;
+            });
+
+            // Turn off green after 2 seconds
+            if (gameState.startLightSequence === 6 && gameState.startLightTimer >= 2.0) {
+                startLightGantry.greenLights.meshes.forEach(mesh => {
+                    mesh.material.emissiveIntensity = 0;
+                });
+                startLightGantry.greenLights.pointLights.forEach(light => {
+                    light.intensity = 0;
+                });
+            }
+        }
+    }
+}
+
 function updateArcadePhysics(dt) {
+    // Don't allow movement until race has started
+    if (!gameState.raceStarted) {
+        gameState.velocity = 0;
+        return;
+    }
+
     const maxSpeed = 350; // km/h - F1 top speed
-    const acceleration = 180; // km/h per second - very fast F1 acceleration
     const braking = 250; // km/h per second - powerful F1 brakes
-    const drag = 15; // air resistance
+    const drag = 12; // air resistance
     const turnSpeed = 1.8; // radians per second
+
+    // Realistic F1 acceleration with progressive gear changes
+    // Each gear has different acceleration - lower gears faster, higher gears slower
+    // Simulates the time it takes to shift through 8 gears
+    let baseAcceleration;
+
+    if (gameState.velocity < 80) {
+        // 1st-2nd gear: Fastest acceleration (40 km/h/s)
+        baseAcceleration = 40;
+    } else if (gameState.velocity < 140) {
+        // 3rd-4th gear: Good acceleration (28 km/h/s)
+        baseAcceleration = 28;
+    } else if (gameState.velocity < 200) {
+        // 5th gear: Moderate acceleration (20 km/h/s)
+        baseAcceleration = 20;
+    } else if (gameState.velocity < 260) {
+        // 6th-7th gear: Slower acceleration (14 km/h/s)
+        baseAcceleration = 14;
+    } else {
+        // 8th gear: Very slow top speed run (9 km/h/s)
+        baseAcceleration = 9;
+    }
 
     // Throttle - progressive acceleration like real F1
     if (controls.currentThrottle > 0.05) {
-        let accel = acceleration * controls.currentThrottle;
+        let accel = baseAcceleration * controls.currentThrottle;
 
         // ERS boost (extra power from hybrid system)
         if (controls.ers && gameState.ers > 0) {
@@ -1085,10 +1414,10 @@ function updateArcadePhysics(dt) {
             gameState.ers -= 0.3;
         }
 
-        // DRS boost (drag reduction)
+        // DRS boost (drag reduction - helps most at high speed)
         if (controls.drs && gameState.drsAvailable) {
             gameState.drsActive = true;
-            accel *= 1.2;
+            accel *= 1.15;
         } else {
             gameState.drsActive = false;
         }
@@ -1145,10 +1474,14 @@ function updateArcadePhysics(dt) {
 }
 
 function updateCamera() {
-    const lerpFactor = 0.1;
+    // Dynamic lerp factor - faster when car is accelerating/moving fast
+    const speedRatio = gameState.velocity / 350;
+    const baseLerpFactor = 0.25; // Much faster base tracking
+    const lerpFactor = baseLerpFactor + (speedRatio * 0.15); // Even faster at high speed
 
     if (cameraMode === 'chase') {
-        const cameraOffset = new THREE.Vector3(0, 4, -12);
+        // Closer camera offset so you can see the road better
+        const cameraOffset = new THREE.Vector3(0, 3.5, -10);
         cameraOffset.applyQuaternion(playerCar.mesh.quaternion);
         const targetPosition = new THREE.Vector3().copy(playerCar.mesh.position).add(cameraOffset);
 
@@ -1162,7 +1495,7 @@ function updateCamera() {
         cockpitOffset.applyQuaternion(playerCar.mesh.quaternion);
         const targetPosition = new THREE.Vector3().copy(playerCar.mesh.position).add(cockpitOffset);
 
-        camera.position.lerp(targetPosition, lerpFactor * 1.5);
+        camera.position.lerp(targetPosition, lerpFactor * 1.8);
 
         const lookTarget = new THREE.Vector3(0, 0, 15);
         lookTarget.applyQuaternion(playerCar.mesh.quaternion);
