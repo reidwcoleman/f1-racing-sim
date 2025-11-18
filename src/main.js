@@ -904,21 +904,21 @@ function createF1Car() {
         indexForwardAxis: 2
     });
 
-    // Advanced suspension settings for ultra-smooth arcade-like stability
+    // Rock-solid suspension - absolutely no bouncing
     const wheelOptions = {
         radius: 0.4,
         directionLocal: new CANNON.Vec3(0, -1, 0),
-        suspensionStiffness: 300, // Super stiff to prevent bouncing
-        suspensionRestLength: 0.2, // Shorter for lower center of gravity
-        frictionSlip: 1000, // Maximum grip - glued to the road
-        dampingRelaxation: 25, // Extreme damping for ultra-smooth ride
-        dampingCompression: 30, // Extreme compression damping
-        maxSuspensionForce: 5000000, // Massive force to keep wheels glued down
-        rollInfluence: 0.00001, // Almost zero roll
+        suspensionStiffness: 1000, // Extremely stiff to eliminate all bouncing (was 300)
+        suspensionRestLength: 0.1, // Very short to minimize movement (was 0.2)
+        frictionSlip: 2000, // Ultra-high grip (was 1000)
+        dampingRelaxation: 100, // Maximum damping to kill all oscillation (was 25)
+        dampingCompression: 100, // Maximum compression damping (was 30)
+        maxSuspensionForce: 10000000, // Huge force to keep car planted (was 5000000)
+        rollInfluence: 0.000001, // Virtually zero roll (was 0.00001)
         axleLocal: new CANNON.Vec3(-1, 0, 0),
         chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-        maxSuspensionTravel: 0.02, // Extremely limited travel to prevent jumping
-        customSlidingRotationalSpeed: -5,
+        maxSuspensionTravel: 0.001, // Almost no travel - locked suspension (was 0.02)
+        customSlidingRotationalSpeed: -2,
         useCustomSlidingRotationalSpeed: true
     };
 
