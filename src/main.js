@@ -892,8 +892,8 @@ function createF1Car() {
     });
     chassisBody.addShape(chassisShape);
     chassisBody.position.set(230, 2, 0);
-    chassisBody.linearDamping = 0.3; // Maximum damping for ultra-smooth ride
-    chassisBody.angularDamping = 0.995; // Maximum angular damping to prevent any wobbling
+    chassisBody.linearDamping = 0.2; // Balanced damping for smooth but responsive ride
+    chassisBody.angularDamping = 0.95; // High angular damping to prevent wobbling
     world.addBody(chassisBody);
 
     // Advanced vehicle with better suspension
@@ -904,21 +904,21 @@ function createF1Car() {
         indexForwardAxis: 2
     });
 
-    // Rock-solid suspension - absolutely no bouncing
+    // Perfectly balanced suspension for smooth arcade driving
     const wheelOptions = {
         radius: 0.4,
         directionLocal: new CANNON.Vec3(0, -1, 0),
-        suspensionStiffness: 1000, // Extremely stiff to eliminate all bouncing (was 300)
-        suspensionRestLength: 0.1, // Very short to minimize movement (was 0.2)
-        frictionSlip: 2000, // Ultra-high grip (was 1000)
-        dampingRelaxation: 100, // Maximum damping to kill all oscillation (was 25)
-        dampingCompression: 100, // Maximum compression damping (was 30)
-        maxSuspensionForce: 10000000, // Huge force to keep car planted (was 5000000)
-        rollInfluence: 0.000001, // Virtually zero roll (was 0.00001)
+        suspensionStiffness: 80, // Moderate stiffness to absorb bumps without bouncing
+        suspensionRestLength: 0.3, // Normal rest length for stability
+        frictionSlip: 3000, // Very high grip for no sliding
+        dampingRelaxation: 20, // High damping to prevent oscillation
+        dampingCompression: 25, // High compression damping to absorb impacts
+        maxSuspensionForce: 8000000, // Strong force to keep wheels planted
+        rollInfluence: 0.00001, // Minimal roll
         axleLocal: new CANNON.Vec3(-1, 0, 0),
         chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-        maxSuspensionTravel: 0.001, // Almost no travel - locked suspension (was 0.02)
-        customSlidingRotationalSpeed: -2,
+        maxSuspensionTravel: 0.1, // Enough travel to absorb bumps smoothly
+        customSlidingRotationalSpeed: -5,
         useCustomSlidingRotationalSpeed: true
     };
 
