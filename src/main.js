@@ -892,8 +892,8 @@ function createF1Car() {
     });
     chassisBody.addShape(chassisShape);
     chassisBody.position.set(230, 2, 0);
-    chassisBody.linearDamping = 0.2; // Much more damping for ultra-smooth ride
-    chassisBody.angularDamping = 0.99; // Near-maximum angular damping to prevent any wobbling
+    chassisBody.linearDamping = 0.3; // Maximum damping for ultra-smooth ride
+    chassisBody.angularDamping = 0.995; // Maximum angular damping to prevent any wobbling
     world.addBody(chassisBody);
 
     // Advanced vehicle with better suspension
@@ -904,21 +904,21 @@ function createF1Car() {
         indexForwardAxis: 2
     });
 
-    // Advanced suspension settings for stability
+    // Advanced suspension settings for ultra-smooth arcade-like stability
     const wheelOptions = {
         radius: 0.4,
         directionLocal: new CANNON.Vec3(0, -1, 0),
-        suspensionStiffness: 200, // Maximum stiffness for stability
-        suspensionRestLength: 0.3,
-        frictionSlip: 500, // Extremely high grip to prevent any sliding
-        dampingRelaxation: 15, // Maximum damping for ultra-smooth ride
-        dampingCompression: 18, // Maximum compression damping
-        maxSuspensionForce: 2000000, // Maximum force to keep wheels planted
-        rollInfluence: 0.0001, // Virtually no roll
+        suspensionStiffness: 300, // Super stiff to prevent bouncing
+        suspensionRestLength: 0.2, // Shorter for lower center of gravity
+        frictionSlip: 1000, // Maximum grip - glued to the road
+        dampingRelaxation: 25, // Extreme damping for ultra-smooth ride
+        dampingCompression: 30, // Extreme compression damping
+        maxSuspensionForce: 5000000, // Massive force to keep wheels glued down
+        rollInfluence: 0.00001, // Almost zero roll
         axleLocal: new CANNON.Vec3(-1, 0, 0),
         chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-        maxSuspensionTravel: 0.05, // Minimal travel for maximum stability
-        customSlidingRotationalSpeed: -8,
+        maxSuspensionTravel: 0.02, // Extremely limited travel to prevent jumping
+        customSlidingRotationalSpeed: -5,
         useCustomSlidingRotationalSpeed: true
     };
 
@@ -976,11 +976,11 @@ function updateHUD() {
     const speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z) * 3.6;
     gameState.speed = speed;
 
-    // Calculate G-force (heavily smoothed and reduced to prevent instability)
+    // Calculate G-force (extremely reduced and smoothed to prevent instability)
     const deltaV = new CANNON.Vec3();
     deltaV.copy(velocity).vsub(gameState.prevVelocity);
-    const instantGforce = (deltaV.length() / (1/60) / 9.81) * 0.3; // Scale down to 30% to reduce tipping
-    gameState.gforce = gameState.gforce * 0.9 + instantGforce * 0.1; // Heavy smoothing
+    const instantGforce = (deltaV.length() / (1/60) / 9.81) * 0.1; // Scale down to 10% (was 30%)
+    gameState.gforce = gameState.gforce * 0.95 + instantGforce * 0.05; // Extreme smoothing (was 0.9/0.1)
     gameState.prevVelocity.copy(velocity);
 
     // Calculate RPM based on speed (very low for stability)
@@ -1151,12 +1151,12 @@ function updatePhysics(dt) {
     // Step physics
     world.step(dt);
 
-    // Direct drive engine with traction control (reduced power for stability)
-    const maxForce = 80000; // Very low power to prevent jerking and tipping
+    // Direct drive engine with traction control (arcade-smooth acceleration)
+    const maxForce = 50000; // Balanced power for smooth, controlled acceleration
 
-    // Progressive power delivery based on speed (traction control)
-    const speedRatio = Math.min(1, gameState.speed / 150); // Gradual ramp up from 0-150 kph
-    const tractionMultiplier = 0.3 + (speedRatio * 0.7); // 30% power at low speed, 100% at 150+ kph
+    // Progressive power delivery based on speed (super smooth traction control)
+    const speedRatio = Math.min(1, gameState.speed / 200); // Gradual ramp from 0-200 kph
+    const tractionMultiplier = 0.2 + (speedRatio * 0.8); // 20% power at low speed, 100% at 200+ kph
 
     let engineForce = controls.currentThrottle * maxForce * tractionMultiplier;
 
