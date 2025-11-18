@@ -907,23 +907,22 @@ function createF1Car() {
         indexForwardAxis: 2
     });
 
-    // Ultra-damped suspension - completely kill bouncing
+    // Suspension with correct geometry (chassis at y=2, wheel radius=0.4, ground at y=0)
     const wheelOptions = {
         radius: 0.4,
         directionLocal: new CANNON.Vec3(0, -1, 0),
-        suspensionStiffness: 30, // Adjusted for lower gravity
-        suspensionRestLength: 0.3,
-        frictionSlip: 2, // Realistic grip
-        dampingRelaxation: 10, // Heavy damping
-        dampingCompression: 10, // Heavy compression damping
+        suspensionStiffness: 100, // Stiffer to support car weight
+        suspensionRestLength: 1.6, // Positions wheel bottom exactly at ground level
+        frictionSlip: 3,
+        dampingRelaxation: 2.3, // Standard damping ratio
+        dampingCompression: 4.4, // Standard compression damping
         maxSuspensionForce: 100000,
         rollInfluence: 0.01,
         axleLocal: new CANNON.Vec3(-1, 0, 0),
         chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-        maxSuspensionTravel: 0.1,
-        customSlidingRotationalSpeed: -0.5,
-        useCustomSlidingRotationalSpeed: true,
-        material: wheelMaterial // Use the wheel material for proper contact
+        maxSuspensionTravel: 0.3, // Reasonable travel
+        customSlidingRotationalSpeed: -30,
+        useCustomSlidingRotationalSpeed: true
     };
 
     // Add wheels
@@ -1155,16 +1154,14 @@ function updatePhysics(dt) {
     // Step physics
     world.step(dt);
 
-    // Kill micro-movements when car is stationary (prevents idle bouncing)
+    // Kill micro-movements when car is stationary
     const velocity = playerCar.body.velocity;
-    const angularVel = playerCar.body.angularVelocity;
-    const totalSpeed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z);
+    const horizontalSpeed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
 
-    if (totalSpeed < 0.1 && !controls.throttle && !controls.brake) {
-        playerCar.body.velocity.set(0, 0, 0);
+    if (horizontalSpeed < 0.05 && !controls.throttle && !controls.brake) {
+        playerCar.body.velocity.x = 0;
+        playerCar.body.velocity.z = 0;
         playerCar.body.angularVelocity.set(0, 0, 0);
-        playerCar.body.force.set(0, 0, 0);
-        playerCar.body.torque.set(0, 0, 0);
     }
 
     // Direct drive engine with traction control
@@ -1209,11 +1206,13 @@ function updatePhysics(dt) {
     playerCar.vehicle.setSteeringValue(steerValue, 0);
     playerCar.vehicle.setSteeringValue(steerValue, 1);
 
-    // Aerodynamic downforce (adjusted for realistic gravity)
-    const downforceCoeff = (gameState.carSetup.frontWing + gameState.carSetup.rearWing) / 40;
-    const speedSquared = gameState.speed * gameState.speed;
-    const downforce = downforceCoeff * speedSquared * 0.5; // Increased for realistic gravity
-    playerCar.body.applyForce(new CANNON.Vec3(0, -downforce, 0), playerCar.body.position);
+    // Aerodynamic downforce (only applies when moving)
+    if (gameState.speed > 5) {
+        const downforceCoeff = (gameState.carSetup.frontWing + gameState.carSetup.rearWing) / 40;
+        const speedSquared = gameState.speed * gameState.speed;
+        const downforce = downforceCoeff * speedSquared * 0.3;
+        playerCar.body.applyForce(new CANNON.Vec3(0, -downforce, 0), playerCar.body.position);
+    }
 
     // Fixed gear - always in top gear for direct drive
     gameState.gear = 8;
