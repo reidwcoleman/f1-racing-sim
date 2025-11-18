@@ -37,12 +37,16 @@ const gameState = {
     // Arcade physics state
     velocity: 0,
     rotation: 0,
-    position: new THREE.Vector3(230, 0.5, 0),
-    prevSpeed: 0
+    position: new THREE.Vector3(230, 0.5, 3), // Starting position (P2)
+    prevSpeed: 0,
+    playerPosition: 2 // Starting in P2
 };
 
 // Starting light gantry meshes (will be created later)
 let startLightGantry = null;
+
+// AI Opponents
+const aiCars = [];
 
 // Controls with smooth interpolation
 const controls = {
@@ -720,8 +724,60 @@ function createFlags(curve, numPoints) {
     }
 }
 
+// Create starting grid with position markers
+function createStartingGrid(trackRadius) {
+    // Starting grid positions (F1 style - staggered 2x2)
+    const gridPositions = [
+        { x: trackRadius * 1.15, z: -3, pos: 1 },    // P1 (pole position)
+        { x: trackRadius * 1.15, z: 3, pos: 2 },     // P2
+        { x: trackRadius * 1.15, z: -9, pos: 3 },    // P3
+        { x: trackRadius * 1.15, z: -3, pos: 4 },    // P4
+        { x: trackRadius * 1.15, z: -15, pos: 5 },   // P5
+        { x: trackRadius * 1.15, z: -9, pos: 6 }     // P6
+    ];
+
+    gridPositions.forEach(pos => {
+        // Starting box lines
+        const boxGeometry = new THREE.PlaneGeometry(4, 8);
+        const boxMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.7,
+            side: THREE.DoubleSide
+        });
+        const box = new THREE.Mesh(boxGeometry, boxMaterial);
+        box.rotation.x = -Math.PI / 2;
+        box.position.set(pos.x, 0.05, pos.z);
+        scene.add(box);
+
+        // Position number
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 80px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(pos.pos.toString(), 64, 64);
+
+        const numberTexture = new THREE.CanvasTexture(canvas);
+        const numberMaterial = new THREE.MeshBasicMaterial({
+            map: numberTexture,
+            transparent: true
+        });
+        const numberPlane = new THREE.Mesh(
+            new THREE.PlaneGeometry(2, 2),
+            numberMaterial
+        );
+        numberPlane.rotation.x = -Math.PI / 2;
+        numberPlane.position.set(pos.x, 0.06, pos.z);
+        scene.add(numberPlane);
+    });
+}
+
 // Create Ultra-Realistic Slender F1 Car with Driver
-function createF1Car() {
+function createF1Car(color = 0xe10600, startPosition = null) {
     const car = new THREE.Group();
 
     // Materials
@@ -732,7 +788,7 @@ function createF1Car() {
     });
 
     const liveryMaterial = new THREE.MeshStandardMaterial({
-        color: 0xe10600,
+        color: color,
         metalness: 0.8,
         roughness: 0.15
     });
@@ -1058,12 +1114,59 @@ function createF1Car() {
     scene.add(car);
 
     // Set initial position
-    car.position.copy(gameState.position);
+    if (startPosition) {
+        car.position.copy(startPosition);
+    } else {
+        car.position.copy(gameState.position);
+    }
 
     return { mesh: car, wheels: car.wheels };
 }
 
 const playerCar = createF1Car();
+
+// Create AI opponent cars
+function createAICars() {
+    const carColors = [
+        { color: 0x0066cc, name: 'Blue Racing' },     // P1 - Blue
+        { color: 0x00cc00, name: 'Green Team' },      // P3 - Green
+        { color: 0xffaa00, name: 'Orange Squad' },    // P4 - Orange
+        { color: 0x9900cc, name: 'Purple Power' },    // P5 - Purple
+        { color: 0x00cccc, name: 'Cyan Speed' }       // P6 - Cyan
+    ];
+
+    const trackRadius = 200;
+    const startPositions = [
+        new THREE.Vector3(trackRadius * 1.15, 0.5, -3),   // P1
+        new THREE.Vector3(trackRadius * 1.15, 0.5, -9),   // P3
+        new THREE.Vector3(trackRadius * 1.15, 0.5, -3),   // P4
+        new THREE.Vector3(trackRadius * 1.15, 0.5, -15),  // P5
+        new THREE.Vector3(trackRadius * 1.15, 0.5, -9)    // P6
+    ];
+
+    carColors.forEach((carData, index) => {
+        const aiCar = createF1Car(carData.color, startPositions[index]);
+        const aiState = {
+            mesh: aiCar.mesh,
+            wheels: aiCar.wheels,
+            name: carData.name,
+            velocity: 0,
+            rotation: 0,
+            position: startPositions[index].clone(),
+            targetSpeed: 280 + Math.random() * 40, // AI top speed varies
+            aggression: 0.7 + Math.random() * 0.3,   // How aggressive the AI is
+            skill: 0.8 + Math.random() * 0.2,        // Skill level affects consistency
+            currentLap: 1,
+            checkpoints: [
+                { passed: false },
+                { passed: false },
+                { passed: false },
+                { passed: false }
+            ]
+        };
+        aiCars.push(aiState);
+    });
+}
 
 // Input handling
 document.addEventListener('keydown', (e) => {
@@ -1146,6 +1249,29 @@ function updateHUD() {
             document.getElementById('delta-time').textContent = (delta >= 0 ? '+' : '') + delta.toFixed(3);
         }
     }
+
+    // Calculate race position
+    const allCars = [
+        { lap: gameState.currentLap, position: gameState.position.clone(), isPlayer: true },
+        ...aiCars.map(ai => ({ lap: ai.currentLap, position: ai.position.clone(), isPlayer: false }))
+    ];
+
+    // Sort by lap then by progress around track
+    allCars.sort((a, b) => {
+        if (b.lap !== a.lap) return b.lap - a.lap;
+
+        // Calculate progress (angle around track)
+        const angleA = Math.atan2(a.position.z, a.position.x);
+        const angleB = Math.atan2(b.position.z, b.position.x);
+        return angleB - angleA;
+    });
+
+    // Find player position
+    const playerRacePosition = allCars.findIndex(car => car.isPlayer) + 1;
+    const positionSuffix = playerRacePosition === 1 ? 'st' :
+                           playerRacePosition === 2 ? 'nd' :
+                           playerRacePosition === 3 ? 'rd' : 'th';
+    document.getElementById('position').textContent = `${playerRacePosition}${positionSuffix} / ${allCars.length}`;
 
     // DRS/ERS
     document.getElementById('drs-status').textContent = gameState.drsActive ? 'ACTIVE' :
@@ -1253,6 +1379,9 @@ function animate(currentTime) {
 
         // Update arcade physics
         updateArcadePhysics(deltaTime);
+
+        // Update AI cars
+        updateAICars(deltaTime);
 
         // Update wheel rotation visuals
         const wheelRotationSpeed = gameState.velocity * 0.1;
@@ -1370,6 +1499,124 @@ function updateStartingLights(dt) {
     }
 }
 
+// AI Racing Logic
+function updateAICars(dt) {
+    if (!gameState.raceStarted) {
+        aiCars.forEach(ai => {
+            ai.velocity = 0;
+        });
+        return;
+    }
+
+    const trackRadius = 200;
+    const centerX = 0;
+    const centerZ = 0;
+
+    aiCars.forEach(ai => {
+        // Calculate distance to track center
+        const dx = ai.position.x - centerX;
+        const dz = ai.position.z - centerZ;
+        const distanceFromCenter = Math.sqrt(dx * dx + dz * dz);
+
+        // Calculate target position on track (follow circular path)
+        const targetRadius = trackRadius * 1.15;
+        const currentAngle = Math.atan2(dz, dx);
+
+        // AI tries to stay on racing line
+        const targetX = Math.cos(currentAngle) * targetRadius;
+        const targetZ = Math.sin(currentAngle) * targetRadius;
+
+        // Calculate desired rotation to follow track
+        const nextAngle = currentAngle + (ai.velocity / 3600) * dt; // Speed determines angle change
+        const nextX = Math.cos(nextAngle) * targetRadius;
+        const nextZ = Math.sin(nextAngle) * targetRadius;
+
+        const targetRotation = Math.atan2(nextZ - ai.position.z, nextX - ai.position.x) - Math.PI / 2;
+
+        // Smooth rotation toward target
+        let rotationDiff = targetRotation - ai.rotation;
+        while (rotationDiff > Math.PI) rotationDiff -= Math.PI * 2;
+        while (rotationDiff < -Math.PI) rotationDiff += Math.PI * 2;
+
+        ai.rotation += rotationDiff * ai.skill * 0.1;
+
+        // AI acceleration and speed control
+        const speedDiff = ai.targetSpeed - ai.velocity;
+
+        if (speedDiff > 0) {
+            // Accelerate
+            let accelRate = 25 * ai.aggression;
+            if (ai.velocity < 80) accelRate = 35 * ai.aggression;
+            else if (ai.velocity < 140) accelRate = 25 * ai.aggression;
+            else if (ai.velocity < 200) accelRate = 18 * ai.aggression;
+            else accelRate = 10 * ai.aggression;
+
+            ai.velocity += accelRate * dt;
+        } else {
+            // Brake if too fast
+            ai.velocity -= 8 * dt;
+        }
+
+        // Air drag
+        const speedRatio = ai.velocity / 350;
+        const dragForce = speedRatio * speedRatio * 12;
+        ai.velocity -= dragForce * dt;
+
+        // Clamp velocity
+        ai.velocity = Math.max(0, Math.min(ai.targetSpeed, ai.velocity));
+
+        // Move AI car
+        const forward = new THREE.Vector3(
+            Math.sin(ai.rotation),
+            0,
+            Math.cos(ai.rotation)
+        );
+
+        const velocityMS = ai.velocity / 3.6;
+        ai.position.x += forward.x * velocityMS * dt;
+        ai.position.z += forward.z * velocityMS * dt;
+
+        // Update mesh
+        ai.mesh.position.copy(ai.position);
+        ai.mesh.rotation.y = ai.rotation;
+
+        // Rotate wheels
+        const wheelRotationSpeed = ai.velocity * 0.1;
+        ai.wheels.forEach(wheel => {
+            wheel.rotation.x += wheelRotationSpeed * dt;
+        });
+
+        // Check AI lap completion
+        checkAILapCompletion(ai, trackRadius);
+    });
+}
+
+// Check if AI car completed a lap
+function checkAILapCompletion(ai, trackRadius) {
+    const checkpoints = [
+        { x: trackRadius * 1.15, z: 0 },
+        { x: 0, z: trackRadius * 1.15 },
+        { x: -trackRadius * 1.15, z: 0 },
+        { x: 0, z: -trackRadius * 1.15 }
+    ];
+
+    checkpoints.forEach((checkpoint, index) => {
+        const dist = Math.sqrt(
+            Math.pow(ai.position.x - checkpoint.x, 2) +
+            Math.pow(ai.position.z - checkpoint.z, 2)
+        );
+
+        if (dist < 20 && !ai.checkpoints[index].passed) {
+            ai.checkpoints[index].passed = true;
+
+            if (ai.checkpoints.every(cp => cp.passed)) {
+                ai.currentLap++;
+                ai.checkpoints.forEach(cp => cp.passed = false);
+            }
+        }
+    });
+}
+
 function updateArcadePhysics(dt) {
     // Don't allow movement until race has started
     if (!gameState.raceStarted) {
@@ -1480,8 +1727,8 @@ function updateCamera() {
     const lerpFactor = baseLerpFactor + (speedRatio * 0.15); // Even faster at high speed
 
     if (cameraMode === 'chase') {
-        // Closer camera offset so you can see the road better
-        const cameraOffset = new THREE.Vector3(0, 3.5, -10);
+        // Further back camera for better track visibility
+        const cameraOffset = new THREE.Vector3(0, 6, -18);
         cameraOffset.applyQuaternion(playerCar.mesh.quaternion);
         const targetPosition = new THREE.Vector3().copy(playerCar.mesh.position).add(cameraOffset);
 
@@ -1547,6 +1794,8 @@ window.startSimulation = function() {
     gameState.running = true;
     gameState.lapStartTime = Date.now();
     createCircuit();
+    createStartingGrid(200); // Create starting grid positions
+    createAICars(); // Create AI opponent cars
     animate(0);
 };
 
