@@ -892,8 +892,8 @@ function createF1Car() {
     });
     chassisBody.addShape(chassisShape);
     chassisBody.position.set(230, 2, 0);
-    chassisBody.linearDamping = 0.2; // Balanced damping for smooth but responsive ride
-    chassisBody.angularDamping = 0.95; // High angular damping to prevent wobbling
+    chassisBody.linearDamping = 0.4; // Very high damping to prevent bouncing
+    chassisBody.angularDamping = 0.98; // Very high angular damping
     world.addBody(chassisBody);
 
     // Advanced vehicle with better suspension
@@ -904,20 +904,20 @@ function createF1Car() {
         indexForwardAxis: 2
     });
 
-    // Perfectly balanced suspension for smooth arcade driving
+    // Ultra-damped suspension - no bouncing whatsoever
     const wheelOptions = {
         radius: 0.4,
         directionLocal: new CANNON.Vec3(0, -1, 0),
-        suspensionStiffness: 80, // Moderate stiffness to absorb bumps without bouncing
-        suspensionRestLength: 0.3, // Normal rest length for stability
-        frictionSlip: 3000, // Very high grip for no sliding
-        dampingRelaxation: 20, // High damping to prevent oscillation
-        dampingCompression: 25, // High compression damping to absorb impacts
-        maxSuspensionForce: 8000000, // Strong force to keep wheels planted
-        rollInfluence: 0.00001, // Minimal roll
+        suspensionStiffness: 50, // Softer suspension to prevent bounce
+        suspensionRestLength: 0.3,
+        frictionSlip: 5000, // Maximum grip
+        dampingRelaxation: 50, // Very high damping to kill all bouncing
+        dampingCompression: 50, // Very high compression damping
+        maxSuspensionForce: 10000000, // Huge force to keep planted
+        rollInfluence: 0.00001,
         axleLocal: new CANNON.Vec3(-1, 0, 0),
         chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-        maxSuspensionTravel: 0.1, // Enough travel to absorb bumps smoothly
+        maxSuspensionTravel: 0.15, // More travel to absorb impacts
         customSlidingRotationalSpeed: -5,
         useCustomSlidingRotationalSpeed: true
     };
