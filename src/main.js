@@ -1069,13 +1069,79 @@ function updatePhysics(dt) {
 }
 
 function updateArcadePhysics(dt) {
-    // All movement disabled - car is completely static
-    gameState.velocity = 0;
-    gameState.speed = 0;
+    const maxSpeed = 350; // km/h - F1 top speed
+    const acceleration = 180; // km/h per second - very fast F1 acceleration
+    const braking = 250; // km/h per second - powerful F1 brakes
+    const drag = 15; // air resistance
+    const turnSpeed = 1.8; // radians per second
 
-    // Car stays at fixed position
+    // Throttle - progressive acceleration like real F1
+    if (controls.currentThrottle > 0.05) {
+        let accel = acceleration * controls.currentThrottle;
+
+        // ERS boost (extra power from hybrid system)
+        if (controls.ers && gameState.ers > 0) {
+            accel *= 1.3;
+            gameState.ers -= 0.3;
+        }
+
+        // DRS boost (drag reduction)
+        if (controls.drs && gameState.drsAvailable) {
+            gameState.drsActive = true;
+            accel *= 1.2;
+        } else {
+            gameState.drsActive = false;
+        }
+
+        gameState.velocity += accel * dt;
+        gameState.fuel -= 0.005 * controls.currentThrottle;
+    } else {
+        gameState.drsActive = false;
+    }
+
+    // Braking - powerful F1 brakes
+    if (controls.currentBrake > 0.05) {
+        gameState.velocity -= braking * controls.currentBrake * dt;
+    }
+
+    // Air resistance (increases with speed squared - realistic)
+    const speedRatio = gameState.velocity / maxSpeed;
+    const dragForce = speedRatio * speedRatio * drag;
+    gameState.velocity -= dragForce * dt;
+
+    // Clamp velocity (no negative speed, max speed limit)
+    gameState.velocity = Math.max(0, Math.min(maxSpeed, gameState.velocity));
+
+    // Steering - harder to turn at high speeds (realistic)
+    const speedFactor = Math.max(0.2, 1 - (gameState.velocity / maxSpeed) * 0.8);
+    gameState.rotation += controls.currentSteering * turnSpeed * speedFactor * dt;
+
+    // Move car forward in the direction it's facing
+    const forward = new THREE.Vector3(
+        Math.sin(gameState.rotation),
+        0,
+        Math.cos(gameState.rotation)
+    );
+
+    // Convert km/h to m/s (divide by 3.6)
+    const velocityMS = gameState.velocity / 3.6;
+    gameState.position.x += forward.x * velocityMS * dt;
+    gameState.position.z += forward.z * velocityMS * dt;
+
+    // Update car mesh position and rotation
     playerCar.mesh.position.copy(gameState.position);
     playerCar.mesh.rotation.y = gameState.rotation;
+
+    // Update speed for HUD
+    gameState.speed = gameState.velocity;
+
+    // Fixed gear - F1 automatic
+    gameState.gear = 8;
+
+    // ERS recharge when not using
+    if (!controls.ers && gameState.ers < 100) {
+        gameState.ers += 0.1;
+    }
 }
 
 function updateCamera() {
