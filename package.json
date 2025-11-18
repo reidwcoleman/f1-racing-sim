@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "npm run build && gh-pages -d dist"
+    "deploy": "npm run build && git add dist && git commit -m 'Deploy build' && git push"
   },
   "keywords": [
     "f1",
@@ -20,11 +20,10 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "three": "^0.160.0",
-    "cannon-es": "^0.20.0"
+    "cannon-es": "^0.20.0",
+    "three": "^0.160.0"
   },
   "devDependencies": {
-    "gh-pages": "^6.3.0",
     "vite": "^5.0.0"
   }
 }
