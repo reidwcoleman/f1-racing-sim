@@ -892,8 +892,10 @@ function createF1Car() {
     });
     chassisBody.addShape(chassisShape);
     chassisBody.position.set(230, 2, 0);
-    chassisBody.linearDamping = 0.4; // Very high damping to prevent bouncing
-    chassisBody.angularDamping = 0.98; // Very high angular damping
+    chassisBody.linearDamping = 0.99; // Extreme damping to kill all movement when stationary
+    chassisBody.angularDamping = 0.99; // Extreme angular damping
+    chassisBody.sleepSpeedLimit = 0.5; // Allow body to sleep when slow
+    chassisBody.sleepTimeLimit = 0.1; // Sleep quickly when below speed limit
     world.addBody(chassisBody);
 
     // Advanced vehicle with better suspension
@@ -904,21 +906,21 @@ function createF1Car() {
         indexForwardAxis: 2
     });
 
-    // Ultra-damped suspension - no bouncing whatsoever
+    // Ultra-damped suspension - completely kill bouncing
     const wheelOptions = {
         radius: 0.4,
         directionLocal: new CANNON.Vec3(0, -1, 0),
-        suspensionStiffness: 50, // Softer suspension to prevent bounce
-        suspensionRestLength: 0.3,
-        frictionSlip: 5000, // Maximum grip
-        dampingRelaxation: 50, // Very high damping to kill all bouncing
-        dampingCompression: 50, // Very high compression damping
-        maxSuspensionForce: 10000000, // Huge force to keep planted
-        rollInfluence: 0.00001,
+        suspensionStiffness: 20, // Very soft suspension
+        suspensionRestLength: 0.25,
+        frictionSlip: 8, // Realistic grip
+        dampingRelaxation: 100, // Maximum damping to kill oscillation
+        dampingCompression: 100, // Maximum compression damping
+        maxSuspensionForce: 100000,
+        rollInfluence: 0.01,
         axleLocal: new CANNON.Vec3(-1, 0, 0),
         chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-        maxSuspensionTravel: 0.15, // More travel to absorb impacts
-        customSlidingRotationalSpeed: -5,
+        maxSuspensionTravel: 0.05, // Very little travel to prevent bounce
+        customSlidingRotationalSpeed: -0.1,
         useCustomSlidingRotationalSpeed: true
     };
 
@@ -1150,6 +1152,18 @@ function animate(currentTime) {
 function updatePhysics(dt) {
     // Step physics
     world.step(dt);
+
+    // Kill micro-movements when car is stationary (prevents idle bouncing)
+    const velocity = playerCar.body.velocity;
+    const angularVel = playerCar.body.angularVelocity;
+    const totalSpeed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z);
+
+    if (totalSpeed < 0.1 && !controls.throttle && !controls.brake) {
+        playerCar.body.velocity.set(0, 0, 0);
+        playerCar.body.angularVelocity.set(0, 0, 0);
+        playerCar.body.force.set(0, 0, 0);
+        playerCar.body.torque.set(0, 0, 0);
+    }
 
     // Direct drive engine with traction control (arcade-smooth acceleration)
     const maxForce = 50000; // Balanced power for smooth, controlled acceleration
