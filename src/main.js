@@ -892,8 +892,8 @@ function createF1Car() {
     });
     chassisBody.addShape(chassisShape);
     chassisBody.position.set(230, 2, 0);
-    chassisBody.linearDamping = 0.1; // More damping for stability
-    chassisBody.angularDamping = 0.95; // Very high angular damping to prevent wobbling
+    chassisBody.linearDamping = 0.2; // Much more damping for ultra-smooth ride
+    chassisBody.angularDamping = 0.99; // Near-maximum angular damping to prevent any wobbling
     world.addBody(chassisBody);
 
     // Advanced vehicle with better suspension
@@ -908,17 +908,17 @@ function createF1Car() {
     const wheelOptions = {
         radius: 0.4,
         directionLocal: new CANNON.Vec3(0, -1, 0),
-        suspensionStiffness: 150, // Even stiffer for better stability
+        suspensionStiffness: 200, // Maximum stiffness for stability
         suspensionRestLength: 0.3,
-        frictionSlip: 250, // Much higher grip to prevent wobbling
-        dampingRelaxation: 10, // Much higher damping for smooth ride
-        dampingCompression: 12, // Much higher compression damping
-        maxSuspensionForce: 1500000, // Even more force to keep wheels planted
-        rollInfluence: 0.0005, // Almost no roll
+        frictionSlip: 500, // Extremely high grip to prevent any sliding
+        dampingRelaxation: 15, // Maximum damping for ultra-smooth ride
+        dampingCompression: 18, // Maximum compression damping
+        maxSuspensionForce: 2000000, // Maximum force to keep wheels planted
+        rollInfluence: 0.0001, // Virtually no roll
         axleLocal: new CANNON.Vec3(-1, 0, 0),
         chassisConnectionPointLocal: new CANNON.Vec3(1, 0, 1),
-        maxSuspensionTravel: 0.08, // Even more limited travel for stability
-        customSlidingRotationalSpeed: -10,
+        maxSuspensionTravel: 0.05, // Minimal travel for maximum stability
+        customSlidingRotationalSpeed: -8,
         useCustomSlidingRotationalSpeed: true
     };
 
@@ -983,8 +983,8 @@ function updateHUD() {
     gameState.gforce = gameState.gforce * 0.9 + instantGforce * 0.1; // Heavy smoothing
     gameState.prevVelocity.copy(velocity);
 
-    // Calculate RPM based on speed (much lower for stability)
-    const maxRPM = 6000; // Reduced from 10000
+    // Calculate RPM based on speed (very low for stability)
+    const maxRPM = 3000; // Much lower to prevent instability
     gameState.rpm = Math.min(maxRPM, (speed / 330) * maxRPM);
 
     // Update telemetry
@@ -1152,11 +1152,11 @@ function updatePhysics(dt) {
     world.step(dt);
 
     // Direct drive engine with traction control (reduced power for stability)
-    const maxForce = 120000; // Much lower to prevent tipping
+    const maxForce = 80000; // Very low power to prevent jerking and tipping
 
     // Progressive power delivery based on speed (traction control)
-    const speedRatio = Math.min(1, gameState.speed / 120); // Ramp up power from 0-120 kph
-    const tractionMultiplier = 0.4 + (speedRatio * 0.6); // 40% power at low speed, 100% at 120+ kph
+    const speedRatio = Math.min(1, gameState.speed / 150); // Gradual ramp up from 0-150 kph
+    const tractionMultiplier = 0.3 + (speedRatio * 0.7); // 30% power at low speed, 100% at 150+ kph
 
     let engineForce = controls.currentThrottle * maxForce * tractionMultiplier;
 
