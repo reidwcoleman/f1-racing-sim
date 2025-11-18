@@ -288,8 +288,67 @@
             color: #e10600;
             display: none;
         }
+
+        /* Starting Lights HUD */
+        #start-lights-hud {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            z-index: 200;
+        }
+
+        #start-lights-display {
+            display: flex;
+            gap: 15px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px 40px;
+            border-radius: 15px;
+            border: 3px solid #e10600;
+            box-shadow: 0 0 30px rgba(225, 6, 0, 0.5);
+        }
+
+        .start-light {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #1a0000;
+            border: 3px solid #333;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
+            transition: all 0.1s ease;
+        }
+
+        .start-light.red {
+            background: #ff0000;
+            border-color: #ff0000;
+            box-shadow: 0 0 20px #ff0000, inset 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        .start-light.green {
+            background: #00ff00;
+            border-color: #00ff00;
+            box-shadow: 0 0 25px #00ff00, inset 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        #start-message {
+            font-size: 48px;
+            font-weight: bold;
+            color: #00ff00;
+            text-shadow: 0 0 20px #00ff00;
+            display: none;
+            animation: pulse 0.5s ease-in-out;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
     </style>
-  <script type="module" crossorigin src="./assets/index-Fd43U7jN.js"></script>
+  <script type="module" crossorigin src="./assets/index-CPdmFJF4.js"></script>
 </head>
 <body>
     <div id="canvas-container"></div>
@@ -445,6 +504,18 @@
     </div>
 
     <div id="loading">LOADING SIMULATION...</div>
+
+    <!-- Starting Lights HUD -->
+    <div id="start-lights-hud">
+        <div id="start-lights-display">
+            <div class="start-light" id="light-1"></div>
+            <div class="start-light" id="light-2"></div>
+            <div class="start-light" id="light-3"></div>
+            <div class="start-light" id="light-4"></div>
+            <div class="start-light" id="light-5"></div>
+        </div>
+        <div id="start-message">GO GO GO!</div>
+    </div>
 
 </body>
 </html>
