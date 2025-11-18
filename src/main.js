@@ -1069,73 +1069,13 @@ function updatePhysics(dt) {
 }
 
 function updateArcadePhysics(dt) {
-    const maxSpeed = 330; // km/h
-    const acceleration = 120; // km/h per second
-    const braking = 200; // km/h per second
-    const drag = 20; // air resistance
-    const turnSpeed = 2.0; // radians per second
+    // All movement disabled - car is completely static
+    gameState.velocity = 0;
+    gameState.speed = 0;
 
-    // Throttle
-    if (controls.currentThrottle > 0.1) {
-        let accel = acceleration * controls.currentThrottle;
-
-        // ERS boost
-        if (controls.ers && gameState.ers > 0) {
-            accel *= 1.25;
-            gameState.ers -= 0.3;
-        }
-
-        // DRS boost
-        if (controls.drs && gameState.drsAvailable) {
-            gameState.drsActive = true;
-            accel *= 1.15;
-        } else {
-            gameState.drsActive = false;
-        }
-
-        gameState.velocity += accel * dt;
-        gameState.fuel -= 0.003 * controls.currentThrottle;
-    } else {
-        gameState.drsActive = false;
-    }
-
-    // Braking
-    if (controls.currentBrake > 0.1) {
-        gameState.velocity -= braking * controls.currentBrake * dt;
-    }
-
-    // Air resistance (drag)
-    const dragForce = (gameState.velocity / maxSpeed) * drag;
-    gameState.velocity -= dragForce * dt;
-
-    // Clamp velocity
-    gameState.velocity = Math.max(0, Math.min(maxSpeed, gameState.velocity));
-
-    // Steering - speed-sensitive
-    const speedFactor = Math.max(0.3, 1 - gameState.velocity / maxSpeed);
-    gameState.rotation += controls.currentSteering * turnSpeed * speedFactor * dt;
-
-    // Move car forward in direction it's facing
-    const forward = new THREE.Vector3(
-        Math.sin(gameState.rotation),
-        0,
-        Math.cos(gameState.rotation)
-    );
-
-    gameState.position.x += forward.x * gameState.velocity * dt * (1/3.6); // Convert km/h to m/s
-    gameState.position.z += forward.z * gameState.velocity * dt * (1/3.6);
-
-    // Update car mesh
+    // Car stays at fixed position
     playerCar.mesh.position.copy(gameState.position);
     playerCar.mesh.rotation.y = gameState.rotation;
-
-    // Fixed gear
-    gameState.gear = 8;
-
-    // ERS recharge
-    if (!controls.ers && gameState.ers < 100) {
-        gameState.ers += 0.08;
-    }
 }
 
 function updateCamera() {
