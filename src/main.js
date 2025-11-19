@@ -207,8 +207,186 @@ function createClouds() {
 
 createClouds();
 
+// ========== TRACK LAYOUT DEFINITIONS ==========
+const trackLayouts = {
+    monaco: {
+        name: 'Monaco Grand Prix',
+        type: 'circular',
+        radius: 200,
+        color: 0x2a2a2a,
+        checkpoints: [
+            { x: 230, z: 0 },
+            { x: 0, z: 230 },
+            { x: -230, z: 0 },
+            { x: 0, z: -230 }
+        ]
+    },
+    arcport: {
+        name: 'Arcport Circuit',
+        type: 'oval',
+        width: 300,
+        height: 180,
+        color: 0x2a2a2a,
+        checkpoints: [
+            { x: 300, z: 0 },
+            { x: 0, z: 180 },
+            { x: -300, z: 0 },
+            { x: 0, z: -180 }
+        ]
+    },
+    yafield: {
+        name: 'Yafield Park',
+        type: 'rounded-square',
+        size: 200,
+        color: 0x2a2a2a,
+        checkpoints: [
+            { x: 200, z: 200 },
+            { x: -200, z: 200 },
+            { x: -200, z: -200 },
+            { x: 200, z: -200 }
+        ]
+    },
+    riverside: {
+        name: 'Riverside Circuit',
+        type: 'figure-eight',
+        radius: 150,
+        color: 0x2a2a2a,
+        checkpoints: [
+            { x: 150, z: 150 },
+            { x: -150, z: 150 },
+            { x: -150, z: -150 },
+            { x: 150, z: -150 }
+        ]
+    },
+    silverstone: {
+        name: 'Silverstone Circuit',
+        type: 'complex',
+        color: 0x2a2a2a,
+        checkpoints: [
+            { x: 250, z: 0 },
+            { x: 100, z: 200 },
+            { x: -200, z: 100 },
+            { x: -100, z: -200 }
+        ]
+    }
+};
+
+// Current track points (global for mini-map)
+let currentTrackPoints = [];
+
+// Generate track points based on layout type
+function generateTrackPoints(layout) {
+    const points = [];
+    const numPoints = 64;
+
+    switch (layout.type) {
+        case 'circular':
+            for (let i = 0; i <= numPoints; i++) {
+                const angle = (i / numPoints) * Math.PI * 2;
+                points.push(new THREE.Vector3(
+                    Math.cos(angle) * layout.radius,
+                    0,
+                    Math.sin(angle) * layout.radius
+                ));
+            }
+            break;
+
+        case 'oval':
+            for (let i = 0; i <= numPoints; i++) {
+                const angle = (i / numPoints) * Math.PI * 2;
+                points.push(new THREE.Vector3(
+                    Math.cos(angle) * layout.width,
+                    0,
+                    Math.sin(angle) * layout.height
+                ));
+            }
+            break;
+
+        case 'rounded-square':
+            const cornerRadius = layout.size * 0.3;
+            const straightLength = layout.size - cornerRadius;
+
+            for (let i = 0; i <= numPoints; i++) {
+                const t = i / numPoints;
+                let x, z;
+
+                if (t < 0.25) {
+                    // Top straight with right corner
+                    const localT = t / 0.25;
+                    if (localT < 0.5) {
+                        x = straightLength * (1 - localT * 2);
+                        z = straightLength;
+                    } else {
+                        const angle = (localT - 0.5) * 2 * Math.PI / 2;
+                        x = -straightLength + Math.cos(Math.PI / 2 - angle) * cornerRadius;
+                        z = straightLength - cornerRadius + Math.sin(Math.PI / 2 - angle) * cornerRadius;
+                    }
+                } else if (t < 0.5) {
+                    // Left straight with left corner
+                    const localT = (t - 0.25) / 0.25;
+                    if (localT < 0.5) {
+                        x = -straightLength;
+                        z = straightLength * (1 - localT * 2);
+                    } else {
+                        const angle = (localT - 0.5) * 2 * Math.PI / 2;
+                        x = -straightLength + cornerRadius - Math.cos(angle) * cornerRadius;
+                        z = -straightLength + Math.sin(angle) * cornerRadius;
+                    }
+                } else if (t < 0.75) {
+                    // Bottom straight with left corner
+                    const localT = (t - 0.5) / 0.25;
+                    if (localT < 0.5) {
+                        x = -straightLength + straightLength * localT * 2;
+                        z = -straightLength;
+                    } else {
+                        const angle = (localT - 0.5) * 2 * Math.PI / 2;
+                        x = straightLength - cornerRadius + Math.cos(angle) * cornerRadius;
+                        z = -straightLength + cornerRadius - Math.sin(angle) * cornerRadius;
+                    }
+                } else {
+                    // Right straight with right corner
+                    const localT = (t - 0.75) / 0.25;
+                    if (localT < 0.5) {
+                        x = straightLength;
+                        z = -straightLength + straightLength * localT * 2;
+                    } else {
+                        const angle = (localT - 0.5) * 2 * Math.PI / 2;
+                        x = straightLength - Math.cos(Math.PI / 2 - angle) * cornerRadius;
+                        z = straightLength - cornerRadius + Math.sin(Math.PI / 2 - angle) * cornerRadius;
+                    }
+                }
+
+                points.push(new THREE.Vector3(x, 0, z));
+            }
+            break;
+
+        case 'figure-eight':
+        case 'complex':
+            // Use circular as fallback for complex tracks
+            for (let i = 0; i <= numPoints; i++) {
+                const angle = (i / numPoints) * Math.PI * 2;
+                const radius = layout.radius || 200;
+                points.push(new THREE.Vector3(
+                    Math.cos(angle) * radius,
+                    0,
+                    Math.sin(angle) * radius
+                ));
+            }
+            break;
+    }
+
+    return points;
+}
+
 // Create Monaco-inspired Circuit with full scenery
 function createCircuit() {
+    // Get current track layout
+    const layoutId = careerState.currentCircuit || 'monaco';
+    const layout = trackLayouts[layoutId];
+    currentTrackPoints = generateTrackPoints(layout);
+
+    console.log(`Creating track: ${layout.name} (${layout.type})`);
+
     // Track surface with better texture
     const trackGeometry = new THREE.PlaneGeometry(600, 600);
     const trackMaterial = new THREE.MeshStandardMaterial({
@@ -221,16 +399,9 @@ function createCircuit() {
     track.receiveShadow = true;
     scene.add(track);
 
-    // Track outline with barriers
-    const points = [];
-    const numPoints = 64;
-    const trackRadius = 200;
-    for (let i = 0; i <= numPoints; i++) {
-        const angle = (i / numPoints) * Math.PI * 2;
-        const x = Math.cos(angle) * trackRadius;
-        const z = Math.sin(angle) * trackRadius;
-        points.push(new THREE.Vector3(x, 0, z));
-    }
+    // Use generated track points
+    const points = currentTrackPoints;
+    const numPoints = points.length - 1;
 
     // White barrier material with sponsor colors
     const whiteBarrierMaterial = new THREE.MeshStandardMaterial({
@@ -336,13 +507,8 @@ function createCircuit() {
     // Flags and banners
     createFlags(outerCurve, numPoints);
 
-    // Checkpoints for lap detection
-    gameState.checkpoints = [
-        { x: trackRadius * 1.15, z: 0, passed: false },
-        { x: 0, z: trackRadius * 1.15, passed: false },
-        { x: -trackRadius * 1.15, z: 0, passed: false },
-        { x: 0, z: -trackRadius * 1.15, passed: false }
-    ];
+    // Checkpoints for lap detection (use layout-specific checkpoints)
+    gameState.checkpoints = layout.checkpoints.map(cp => ({ ...cp, passed: false }));
 }
 
 // Create grandstands with crowd
@@ -2179,50 +2345,93 @@ function drawMiniMap() {
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw track (circular for now)
-    ctx.strokeStyle = '#444';
-    ctx.lineWidth = 20;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, trackRadius, 0, Math.PI * 2);
-    ctx.stroke();
+    // Draw track using current track points
+    if (currentTrackPoints.length > 0) {
+        // Calculate scale to fit track on mini-map
+        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        currentTrackPoints.forEach(p => {
+            minX = Math.min(minX, p.x);
+            maxX = Math.max(maxX, p.x);
+            minZ = Math.min(minZ, p.z);
+            maxZ = Math.max(maxZ, p.z);
+        });
 
-    // Draw track center line
-    ctx.strokeStyle = '#666';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, trackRadius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
+        const trackWidth = maxX - minX;
+        const trackHeight = maxZ - minZ;
+        const scale = Math.min(140 / trackWidth, 140 / trackHeight);
 
-    // Draw start/finish line
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(centerX + trackRadius - 5, centerY - 15, 10, 30);
-
-    // Draw AI cars
-    aiCars.forEach((ai, index) => {
-        const angle = Math.atan2(ai.position.z, ai.position.x);
-        const x = centerX + Math.cos(angle) * trackRadius;
-        const y = centerY + Math.sin(angle) * trackRadius;
-
-        ctx.fillStyle = ['#0066cc', '#00cc00', '#ffaa00', '#9900cc', '#00cccc'][index];
+        // Draw track outline
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 15;
         ctx.beginPath();
-        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        currentTrackPoints.forEach((p, i) => {
+            const x = centerX + p.x * scale;
+            const y = centerY + p.z * scale;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        ctx.stroke();
+
+        // Draw track center line
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        currentTrackPoints.forEach((p, i) => {
+            const x = centerX + p.x * scale;
+            const y = centerY + p.z * scale;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw start/finish line (at first point)
+        const startX = centerX + currentTrackPoints[0].x * scale;
+        const startY = centerY + currentTrackPoints[0].z * scale;
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(startX - 2, startY - 8, 4, 16);
+    }
+
+    // Calculate scale for car positions (same as track)
+    if (currentTrackPoints.length > 0) {
+        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        currentTrackPoints.forEach(p => {
+            minX = Math.min(minX, p.x);
+            maxX = Math.max(maxX, p.x);
+            minZ = Math.min(minZ, p.z);
+            maxZ = Math.max(maxZ, p.z);
+        });
+
+        const trackWidth = maxX - minX;
+        const trackHeight = maxZ - minZ;
+        const scale = Math.min(140 / trackWidth, 140 / trackHeight);
+
+        // Draw AI cars
+        aiCars.forEach((ai, index) => {
+            const x = centerX + ai.position.x * scale;
+            const y = centerY + ai.position.z * scale;
+
+            ctx.fillStyle = ['#0066cc', '#00cc00', '#ffaa00', '#9900cc', '#00cccc'][index];
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // Draw player car (larger, red)
+        const playerX = centerX + gameState.position.x * scale;
+        const playerY = centerY + gameState.position.z * scale;
+
+        ctx.fillStyle = '#e10600';
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(playerX, playerY, 6, 0, Math.PI * 2);
         ctx.fill();
-    });
-
-    // Draw player car (larger, red)
-    const playerAngle = Math.atan2(gameState.position.z, gameState.position.x);
-    const playerX = centerX + Math.cos(playerAngle) * trackRadius;
-    const playerY = centerY + Math.sin(playerAngle) * trackRadius;
-
-    ctx.fillStyle = '#e10600';
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(playerX, playerY, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+        ctx.stroke();
+    }
 }
 
 // ========== TIRE WEAR SYSTEM ==========
