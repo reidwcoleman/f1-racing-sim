@@ -634,6 +634,9 @@ function createCircuit() {
     // Pit building
     createPitBuilding();
 
+    // Calculate trackRadius from layout
+    const trackRadius = layout.radius || 200;
+
     // Start/Finish line with checkered pattern
     createStartFinishLine(trackRadius);
 
@@ -2953,7 +2956,13 @@ window.startSimulation = function() {
     gameState.rotation = 0;
 
     createCircuit();
-    createStartingGrid(200); // Create starting grid positions
+
+    // Get track radius from current layout
+    const layoutId = careerState.currentCircuit || 'monaco';
+    const layout = trackLayouts[layoutId];
+    const trackRadius = layout.radius || 200;
+
+    createStartingGrid(trackRadius); // Create starting grid positions
     createPitLaneMarkers(); // Create pit lane visual markers
     createAICars(); // Create AI opponent cars
     animate(0);
