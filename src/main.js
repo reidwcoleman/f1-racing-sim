@@ -695,7 +695,7 @@ function createCircuit() {
     // Flags and banners
     createFlags(outerCurve, numPoints);
 
-    // Track-side lighting for night visibility
+    // Track-side light poles (decorative only in daytime)
     createTrackLights(innerCurve, outerCurve, numPoints);
 
     // Checkpoints for lap detection (use layout-specific checkpoints)
@@ -1205,9 +1205,9 @@ function createFlags(curve, numPoints) {
     }
 }
 
-// Create track-side lighting for night racing visibility
+// Create track-side lighting poles (disabled for daytime racing)
 function createTrackLights(innerCurve, outerCurve, numPoints) {
-    // Create lights every 8 points around the track (32 light poles)
+    // Create light poles every 8 points around the track (decorative only in daytime)
     for (let i = 0; i < numPoints; i += 8) {
         const t = i / numPoints;
 
@@ -1221,7 +1221,7 @@ function createTrackLights(innerCurve, outerCurve, numPoints) {
     }
 }
 
-// Helper function to create a single light pole
+// Helper function to create a single light pole (lights off for daytime)
 function createLightPole(x, z) {
     // Pole
     const poleGeometry = new THREE.CylinderGeometry(0.15, 0.2, 12, 8);
@@ -1235,12 +1235,12 @@ function createLightPole(x, z) {
     pole.castShadow = true;
     scene.add(pole);
 
-    // Light fixture
+    // Light fixture (not glowing in daytime)
     const fixtureGeometry = new THREE.BoxGeometry(0.8, 0.4, 0.8);
     const fixtureMaterial = new THREE.MeshStandardMaterial({
         color: 0x222222,
-        emissive: 0xffffaa,
-        emissiveIntensity: 0.4,
+        emissive: 0x000000,
+        emissiveIntensity: 0,
         roughness: 0.3,
         metalness: 0.8
     });
@@ -1248,10 +1248,10 @@ function createLightPole(x, z) {
     fixture.position.set(x, 12, z);
     scene.add(fixture);
 
-    // Point light for illumination (NO shadow casting to avoid texture limit)
-    const pointLight = new THREE.PointLight(0xffffdd, 0.8, 50);
+    // Point light disabled for daytime racing (intensity set to 0)
+    const pointLight = new THREE.PointLight(0xffffdd, 0, 50);
     pointLight.position.set(x, 12, z);
-    pointLight.castShadow = false; // Disabled to prevent texture limit error
+    pointLight.castShadow = false;
     scene.add(pointLight);
 }
 
