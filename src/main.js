@@ -607,6 +607,50 @@ function createCircuit() {
         scene.add(logo);
     }
 
+    // Add tire barriers on outer boundary for F1 realism
+    const tireBarrierMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1a1a1a,
+        roughness: 0.9,
+        metalness: 0.1
+    });
+
+    for (let i = 0; i < numPoints; i += 2) {
+        const t = i / numPoints;
+        const pos = outerCurve.getPoint(t);
+        const tangent = outerCurve.getTangent(t);
+
+        // Stack of 3 tires
+        for (let stack = 0; stack < 3; stack++) {
+            const tireGeometry = new THREE.TorusGeometry(0.8, 0.3, 8, 16);
+            const tire = new THREE.Mesh(tireGeometry, tireBarrierMaterial);
+
+            tire.position.set(pos.x, 0.4 + stack * 0.7, pos.z);
+            tire.rotation.x = Math.PI / 2;
+            tire.rotation.z = Math.atan2(-tangent.x, tangent.z);
+
+            scene.add(tire);
+        }
+    }
+
+    // Add tire barriers on inner boundary
+    for (let i = 0; i < numPoints; i += 2) {
+        const t = i / numPoints;
+        const pos = innerCurve.getPoint(t);
+        const tangent = innerCurve.getTangent(t);
+
+        // Stack of 2 tires on inner boundary
+        for (let stack = 0; stack < 2; stack++) {
+            const tireGeometry = new THREE.TorusGeometry(0.8, 0.3, 8, 16);
+            const tire = new THREE.Mesh(tireGeometry, tireBarrierMaterial);
+
+            tire.position.set(pos.x, 0.4 + stack * 0.7, pos.z);
+            tire.rotation.x = Math.PI / 2;
+            tire.rotation.z = Math.atan2(-tangent.x, tangent.z);
+
+            scene.add(tire);
+        }
+    }
+
     // Grandstands with crowds
     createGrandstands(outerCurve, numPoints);
 
@@ -1900,6 +1944,80 @@ function completePitStop() {
     if (damageBar) damageBar.style.width = '0%';
 }
 
+// Track boundary collision system
+function checkTrackBoundaries() {
+    const carPos = gameState.position;
+    const layoutId = careerState.currentCircuit || 'monaco';
+    const layout = trackLayouts[layoutId];
+
+    let innerRadius, outerRadius;
+
+    // Calculate track boundaries based on layout type
+    if (layout.type === 'circular') {
+        innerRadius = layout.radius * 0.85;  // Inner boundary
+        outerRadius = layout.radius * 1.45;  // Outer boundary
+    } else if (layout.type === 'oval') {
+        innerRadius = Math.min(layout.width, layout.height) * 0.35;
+        outerRadius = Math.max(layout.width, layout.height) * 0.65;
+    } else {
+        // For complex tracks, use rough estimates
+        innerRadius = 150;
+        outerRadius = 280;
+    }
+
+    const distanceFromCenter = Math.sqrt(carPos.x * carPos.x + carPos.z * carPos.z);
+
+    // Check if car hit outer barrier
+    if (distanceFromCenter > outerRadius) {
+        handleBarrierCollision(carPos, outerRadius, false);
+        return true;
+    }
+
+    // Check if car hit inner barrier
+    if (distanceFromCenter < innerRadius) {
+        handleBarrierCollision(carPos, innerRadius, true);
+        return true;
+    }
+
+    return false;
+}
+
+function handleBarrierCollision(carPos, radius, isInner) {
+    // Calculate angle from center
+    const angle = Math.atan2(carPos.z, carPos.x);
+
+    // Push car back to track boundary
+    if (isInner) {
+        carPos.x = Math.cos(angle) * (radius + 2);
+        carPos.z = Math.sin(angle) * (radius + 2);
+    } else {
+        carPos.x = Math.cos(angle) * (radius - 2);
+        carPos.z = Math.sin(angle) * (radius - 2);
+    }
+
+    // Reduce speed significantly on impact
+    gameState.velocity *= 0.3;
+
+    // Add damage based on impact speed
+    const impactDamage = Math.min(15, gameState.speed / 20);
+    gameState.damage = Math.min(100, gameState.damage + impactDamage);
+
+    // Update damage bar
+    const damageBar = document.getElementById('damage-bar');
+    if (damageBar) {
+        damageBar.style.width = gameState.damage + '%';
+    }
+
+    // Visual feedback - flash screen red briefly
+    const canvas = document.querySelector('canvas');
+    if (canvas && gameState.speed > 50) {
+        canvas.style.filter = 'brightness(1.3) saturate(1.5)';
+        setTimeout(() => {
+            canvas.style.filter = '';
+        }, 100);
+    }
+}
+
 // Check lap completion
 function checkLapCompletion() {
     const carPos = gameState.position;
@@ -2019,6 +2137,7 @@ function animate(currentTime) {
         checkCollisions();
         updateKERS(deltaTime);
         drawMiniMap();
+        checkTrackBoundaries();
         checkPitLaneEntry();
         updatePitStop(deltaTime);
 
@@ -2143,14 +2262,15 @@ function updateAICars(dt) {
     const centerX = 0;
     const centerZ = 0;
 
-    aiCars.forEach(ai => {
+    aiCars.forEach((ai, index) => {
         // Calculate distance to track center
         const dx = ai.position.x - centerX;
         const dz = ai.position.z - centerZ;
         const distanceFromCenter = Math.sqrt(dx * dx + dz * dz);
 
-        // Calculate target position on track (follow circular path)
-        const targetRadius = trackRadius * 1.15;
+        // Each AI car has a slightly different racing line for variety
+        const lineVariation = (index % 3) * 0.03; // 0%, 3%, or 6% variation
+        const targetRadius = trackRadius * (1.15 + lineVariation);
         const currentAngle = Math.atan2(dz, dx);
 
         // AI tries to stay on racing line
@@ -2206,6 +2326,23 @@ function updateAICars(dt) {
         const velocityMS = ai.velocity / 3.6;
         ai.position.x += forward.x * velocityMS * dt;
         ai.position.z += forward.z * velocityMS * dt;
+
+        // AI boundary collision check
+        const aiDistFromCenter = Math.sqrt(ai.position.x * ai.position.x + ai.position.z * ai.position.z);
+        const innerBound = trackRadius * 0.85;
+        const outerBound = trackRadius * 1.45;
+
+        if (aiDistFromCenter > outerBound) {
+            const aiAngle = Math.atan2(ai.position.z, ai.position.x);
+            ai.position.x = Math.cos(aiAngle) * (outerBound - 2);
+            ai.position.z = Math.sin(aiAngle) * (outerBound - 2);
+            ai.velocity *= 0.4; // Slow down AI on collision
+        } else if (aiDistFromCenter < innerBound) {
+            const aiAngle = Math.atan2(ai.position.z, ai.position.x);
+            ai.position.x = Math.cos(aiAngle) * (innerBound + 2);
+            ai.position.z = Math.sin(aiAngle) * (innerBound + 2);
+            ai.velocity *= 0.4; // Slow down AI on collision
+        }
 
         // Update mesh
         ai.mesh.position.copy(ai.position);
