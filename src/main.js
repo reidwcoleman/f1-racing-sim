@@ -830,7 +830,7 @@ function createGrandstands(curve, numPoints) {
                 fixture.lookAt(new THREE.Vector3(0, 0, 0));
                 scene.add(fixture);
 
-                // Powerful spotlight for night racing
+                // Powerful spotlight for night racing (NO shadows to prevent texture limit)
                 const spotlight = new THREE.SpotLight(0xffffdd, 1.5, 500, Math.PI / 4, 0.3, 1);
                 spotlight.position.set(
                     pos.x * 1.22 + Math.cos(angle + Math.PI/2) * lightOffset,
@@ -838,9 +838,7 @@ function createGrandstands(curve, numPoints) {
                     pos.z * 1.22 + Math.sin(angle + Math.PI/2) * lightOffset
                 );
                 spotlight.target.position.set(pos.x * 0.5, 0, pos.z * 0.5);
-                spotlight.castShadow = true;
-                spotlight.shadow.mapSize.width = 1024;
-                spotlight.shadow.mapSize.height = 1024;
+                spotlight.castShadow = false; // Disabled to prevent texture limit error
                 scene.add(spotlight);
                 scene.add(spotlight.target);
             }
@@ -1247,12 +1245,10 @@ function createLightPole(x, z) {
     fixture.position.set(x, 12, z);
     scene.add(fixture);
 
-    // Point light for illumination
+    // Point light for illumination (NO shadow casting to avoid texture limit)
     const pointLight = new THREE.PointLight(0xffffdd, 0.8, 50);
     pointLight.position.set(x, 12, z);
-    pointLight.castShadow = true;
-    pointLight.shadow.mapSize.width = 512;
-    pointLight.shadow.mapSize.height = 512;
+    pointLight.castShadow = false; // Disabled to prevent texture limit error
     scene.add(pointLight);
 }
 
@@ -1911,6 +1907,18 @@ function updateHUD() {
     // Speedometer
     document.getElementById('speed').textContent = Math.round(speed);
     document.getElementById('gear').textContent = 'AUTO';
+
+    // Speed vignette effect - intensifies at high speeds
+    const speedVignette = document.getElementById('speed-vignette');
+    if (speedVignette) {
+        if (speed > 200) {
+            speedVignette.classList.add('active');
+            const intensity = Math.min((speed - 200) / 150, 1);
+            speedVignette.style.opacity = intensity * 0.5;
+        } else {
+            speedVignette.classList.remove('active');
+        }
+    }
 
     // Realistic tire temps based on speed and cornering
     const baseTempIncrease = speed * 0.04;
