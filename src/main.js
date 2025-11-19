@@ -202,11 +202,11 @@ const vignetteShader = {
 const vignettePass = new ShaderPass(vignetteShader);
 composer.addPass(vignettePass);
 
-// Enhanced Lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+// Enhanced Lighting for Night Racing Visibility
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // Brighter for better visibility
 scene.add(ambientLight);
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+const sunLight = new THREE.DirectionalLight(0xffffff, 1.2); // Stronger sun
 sunLight.position.set(100, 200, 100);
 sunLight.castShadow = true;
 sunLight.shadow.camera.left = -200;
@@ -219,8 +219,13 @@ sunLight.shadow.mapSize.height = 2048;
 sunLight.shadow.bias = -0.0001;
 scene.add(sunLight);
 
-const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x545454, 0.5);
+const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x545454, 0.7); // Brighter sky light
 scene.add(hemisphereLight);
+
+// Additional fill light for car visibility
+const fillLight = new THREE.DirectionalLight(0xffffee, 0.4);
+fillLight.position.set(-100, 100, -100);
+scene.add(fillLight);
 
 // Particle systems for visual effects
 const particleSystems = {
@@ -690,6 +695,9 @@ function createCircuit() {
     // Flags and banners
     createFlags(outerCurve, numPoints);
 
+    // Track-side lighting for night visibility
+    createTrackLights(innerCurve, outerCurve, numPoints);
+
     // Checkpoints for lap detection (use layout-specific checkpoints)
     gameState.checkpoints = layout.checkpoints.map(cp => ({ ...cp, passed: false }));
 }
@@ -697,56 +705,144 @@ function createCircuit() {
 // Create grandstands with crowd
 function createGrandstands(curve, numPoints) {
     const standMaterial = new THREE.MeshStandardMaterial({
-        color: 0x444444,
-        roughness: 0.8
+        color: 0x2a2a2a,
+        roughness: 0.7,
+        metalness: 0.3
     });
 
     const seatMaterial = new THREE.MeshStandardMaterial({
         color: 0xe10600,
-        roughness: 0.7
+        roughness: 0.6
     });
 
-    // Create 8 grandstand sections around the track
-    for (let i = 0; i < 8; i++) {
-        const t = (i / 8) + 0.05;
-        const pos = curve.getPoint(t);
-        const nextPos = curve.getPoint(t + 0.01);
+    const roofMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1a1a1a,
+        roughness: 0.5,
+        metalness: 0.6
+    });
 
-        // Main stand structure
-        const standGeometry = new THREE.BoxGeometry(30, 15, 8);
+    // Create 16 MASSIVE grandstand sections (full F1 stadium environment)
+    for (let i = 0; i < 16; i++) {
+        const t = (i / 16) + 0.03;
+        const pos = curve.getPoint(t);
+
+        // MASSIVE main stand structure (3x bigger)
+        const standGeometry = new THREE.BoxGeometry(50, 25, 12);
         const stand = new THREE.Mesh(standGeometry, standMaterial);
-        stand.position.set(pos.x * 1.15, 7.5, pos.z * 1.15);
-        stand.lookAt(new THREE.Vector3(0, 7.5, 0));
+        stand.position.set(pos.x * 1.18, 12.5, pos.z * 1.18);
+        stand.lookAt(new THREE.Vector3(0, 12.5, 0));
         stand.castShadow = true;
         stand.receiveShadow = true;
         scene.add(stand);
 
-        // Seating tiers
-        for (let tier = 0; tier < 5; tier++) {
-            const seatGeometry = new THREE.BoxGeometry(28, 0.5, 1.5);
+        // Stadium roof
+        const roofGeometry = new THREE.BoxGeometry(52, 0.5, 15);
+        const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+        roof.position.set(pos.x * 1.18, 26, pos.z * 1.18);
+        roof.lookAt(new THREE.Vector3(0, 26, 0));
+        roof.castShadow = true;
+        scene.add(roof);
+
+        // Support columns
+        for (let col = 0; col < 4; col++) {
+            const columnGeometry = new THREE.CylinderGeometry(0.6, 0.8, 25, 8);
+            const column = new THREE.Mesh(columnGeometry, standMaterial);
+            const angle = Math.atan2(pos.z, pos.x);
+            const colOffset = (col - 1.5) * 12;
+            column.position.set(
+                pos.x * 1.19 + Math.cos(angle + Math.PI/2) * colOffset,
+                12.5,
+                pos.z * 1.19 + Math.sin(angle + Math.PI/2) * colOffset
+            );
+            column.castShadow = true;
+            scene.add(column);
+        }
+
+        // 8 seating tiers (much taller grandstands)
+        for (let tier = 0; tier < 8; tier++) {
+            const seatGeometry = new THREE.BoxGeometry(48, 0.6, 2);
             const seats = new THREE.Mesh(seatGeometry, seatMaterial);
-            seats.position.set(pos.x * 1.16, 2 + tier * 2.5, pos.z * 1.16);
-            seats.lookAt(new THREE.Vector3(0, 2 + tier * 2.5, 0));
+            seats.position.set(pos.x * 1.19, 2 + tier * 2.8, pos.z * 1.19);
+            seats.lookAt(new THREE.Vector3(0, 2 + tier * 2.8, 0));
             scene.add(seats);
 
-            // Crowd representation (small boxes)
-            for (let j = 0; j < 40; j++) {
-                const crowdGeometry = new THREE.BoxGeometry(0.6, 1.2, 0.6);
-                const crowdColors = [0xff6600, 0x0066cc, 0xffff00, 0x00ff00, 0xff00ff];
+            // MASSIVE crowds (80 people per tier)
+            for (let j = 0; j < 80; j++) {
+                const crowdGeometry = new THREE.BoxGeometry(0.5, 1.1, 0.5);
+                const crowdColors = [
+                    0xff6600, 0x0066cc, 0xffff00, 0x00ff00, 0xff00ff,
+                    0xff0000, 0x00ffff, 0xffffff, 0x000000, 0xff1493
+                ];
                 const crowdMaterial = new THREE.MeshStandardMaterial({
                     color: crowdColors[Math.floor(Math.random() * crowdColors.length)],
-                    roughness: 0.9
+                    roughness: 0.85
                 });
                 const person = new THREE.Mesh(crowdGeometry, crowdMaterial);
 
                 const angle = Math.atan2(pos.z, pos.x);
-                const offset = (j - 20) * 0.7;
+                const offset = (j - 40) * 0.6;
                 person.position.set(
-                    pos.x * 1.165 + Math.cos(angle + Math.PI/2) * offset,
-                    2.8 + tier * 2.5,
-                    pos.z * 1.165 + Math.sin(angle + Math.PI/2) * offset
+                    pos.x * 1.20 + Math.cos(angle + Math.PI/2) * offset,
+                    2.8 + tier * 2.8,
+                    pos.z * 1.20 + Math.sin(angle + Math.PI/2) * offset
                 );
+                person.castShadow = true;
                 scene.add(person);
+            }
+        }
+
+        // Stadium floodlights (for night racing visibility)
+        if (i % 2 === 0) {
+            for (let light = 0; light < 2; light++) {
+                // Light pole
+                const poleGeometry = new THREE.CylinderGeometry(0.4, 0.6, 35, 8);
+                const poleMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x555555,
+                    roughness: 0.4,
+                    metalness: 0.7
+                });
+                const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+                const angle = Math.atan2(pos.z, pos.x);
+                const lightOffset = (light - 0.5) * 20;
+                pole.position.set(
+                    pos.x * 1.22 + Math.cos(angle + Math.PI/2) * lightOffset,
+                    17.5,
+                    pos.z * 1.22 + Math.sin(angle + Math.PI/2) * lightOffset
+                );
+                pole.castShadow = true;
+                scene.add(pole);
+
+                // Floodlight fixture
+                const fixtureGeometry = new THREE.BoxGeometry(3, 1.5, 1.5);
+                const fixtureMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x222222,
+                    emissive: 0xffff88,
+                    emissiveIntensity: 0.3,
+                    roughness: 0.3,
+                    metalness: 0.8
+                });
+                const fixture = new THREE.Mesh(fixtureGeometry, fixtureMaterial);
+                fixture.position.set(
+                    pos.x * 1.22 + Math.cos(angle + Math.PI/2) * lightOffset,
+                    35,
+                    pos.z * 1.22 + Math.sin(angle + Math.PI/2) * lightOffset
+                );
+                fixture.lookAt(new THREE.Vector3(0, 0, 0));
+                scene.add(fixture);
+
+                // Powerful spotlight for night racing
+                const spotlight = new THREE.SpotLight(0xffffdd, 1.5, 500, Math.PI / 4, 0.3, 1);
+                spotlight.position.set(
+                    pos.x * 1.22 + Math.cos(angle + Math.PI/2) * lightOffset,
+                    35,
+                    pos.z * 1.22 + Math.sin(angle + Math.PI/2) * lightOffset
+                );
+                spotlight.target.position.set(pos.x * 0.5, 0, pos.z * 0.5);
+                spotlight.castShadow = true;
+                spotlight.shadow.mapSize.width = 1024;
+                spotlight.shadow.mapSize.height = 1024;
+                scene.add(spotlight);
+                scene.add(spotlight.target);
             }
         }
     }
@@ -1106,6 +1202,58 @@ function createFlags(curve, numPoints) {
         flag.rotation.y = Math.atan2(pos.z, pos.x) + Math.PI / 2;
         scene.add(flag);
     }
+}
+
+// Create track-side lighting for night racing visibility
+function createTrackLights(innerCurve, outerCurve, numPoints) {
+    // Create lights every 8 points around the track (32 light poles)
+    for (let i = 0; i < numPoints; i += 8) {
+        const t = i / numPoints;
+
+        // Inner track lights
+        const innerPos = innerCurve.getPoint(t);
+        createLightPole(innerPos.x * 0.9, innerPos.z * 0.9);
+
+        // Outer track lights
+        const outerPos = outerCurve.getPoint(t);
+        createLightPole(outerPos.x * 1.1, outerPos.z * 1.1);
+    }
+}
+
+// Helper function to create a single light pole
+function createLightPole(x, z) {
+    // Pole
+    const poleGeometry = new THREE.CylinderGeometry(0.15, 0.2, 12, 8);
+    const poleMaterial = new THREE.MeshStandardMaterial({
+        color: 0x333333,
+        roughness: 0.5,
+        metalness: 0.7
+    });
+    const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+    pole.position.set(x, 6, z);
+    pole.castShadow = true;
+    scene.add(pole);
+
+    // Light fixture
+    const fixtureGeometry = new THREE.BoxGeometry(0.8, 0.4, 0.8);
+    const fixtureMaterial = new THREE.MeshStandardMaterial({
+        color: 0x222222,
+        emissive: 0xffffaa,
+        emissiveIntensity: 0.4,
+        roughness: 0.3,
+        metalness: 0.8
+    });
+    const fixture = new THREE.Mesh(fixtureGeometry, fixtureMaterial);
+    fixture.position.set(x, 12, z);
+    scene.add(fixture);
+
+    // Point light for illumination
+    const pointLight = new THREE.PointLight(0xffffdd, 0.8, 50);
+    pointLight.position.set(x, 12, z);
+    pointLight.castShadow = true;
+    pointLight.shadow.mapSize.width = 512;
+    pointLight.shadow.mapSize.height = 512;
+    scene.add(pointLight);
 }
 
 // Create starting grid with position markers
