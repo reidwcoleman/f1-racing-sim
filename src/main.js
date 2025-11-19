@@ -544,96 +544,143 @@ function createCircuit() {
     const points = currentTrackPoints;
     const numPoints = points.length - 1;
 
-    // F1-style red and white striped barriers
+    // F1-style materials
     const redMaterial = new THREE.MeshStandardMaterial({
-        color: 0xff0000,
-        roughness: 0.7,
+        color: 0xdd0000,
+        roughness: 0.6,
         metalness: 0.1
     });
 
     const whiteMaterial = new THREE.MeshStandardMaterial({
         color: 0xffffff,
-        roughness: 0.7,
+        roughness: 0.6,
         metalness: 0.1
     });
 
-    // Inner curve for barriers
-    const innerCurve = new THREE.CatmullRomCurve3(points);
+    // WIDER TRACK - Inner and outer track edges (F1 standard width ~15m)
+    const innerTrackPoints = points.map(p => new THREE.Vector3(p.x * 0.8, 0, p.z * 0.8));
+    const outerTrackPoints = points.map(p => new THREE.Vector3(p.x * 1.5, 0, p.z * 1.5));
+    const innerCurve = new THREE.CatmullRomCurve3(innerTrackPoints);
+    const outerCurve = new THREE.CatmullRomCurve3(outerTrackPoints);
 
-    // Create red/white striped barriers on inner edge
-    for (let i = 0; i < numPoints; i += 2) {
-        const t = i / numPoints;
-        const pos = innerCurve.getPoint(t);
-        const isRed = (i / 2) % 2 === 0;
-
-        const barrierGeometry = new THREE.BoxGeometry(6, 1.2, 0.4);
-        const barrier = new THREE.Mesh(barrierGeometry, isRed ? redMaterial : whiteMaterial);
-        barrier.position.set(pos.x, 0.6, pos.z);
-        barrier.lookAt(new THREE.Vector3(0, 0.6, 0));
-        barrier.castShadow = true;
-        scene.add(barrier);
-    }
-
-    // Outer curve for barriers
-    const outerPoints = points.map(p => new THREE.Vector3(p.x * 1.3, 0, p.z * 1.3));
-    const outerCurve = new THREE.CatmullRomCurve3(outerPoints);
-
-    // Create red/white striped barriers on outer edge
-    for (let i = 0; i < numPoints; i += 2) {
-        const t = i / numPoints;
-        const pos = outerCurve.getPoint(t);
-        const isRed = (i / 2) % 2 === 1; // Offset pattern
-
-        const barrierGeometry = new THREE.BoxGeometry(6, 1.2, 0.4);
-        const barrier = new THREE.Mesh(barrierGeometry, isRed ? redMaterial : whiteMaterial);
-        barrier.position.set(pos.x, 0.6, pos.z);
-        barrier.lookAt(new THREE.Vector3(0, 0.6, 0));
-        barrier.castShadow = true;
-        scene.add(barrier);
-    }
-
-    // Add tire barriers on outer boundary for F1 realism
-    const tireBarrierMaterial = new THREE.MeshStandardMaterial({
-        color: 0x1a1a1a,
-        roughness: 0.9,
-        metalness: 0.1
-    });
-
-    for (let i = 0; i < numPoints; i += 2) {
-        const t = i / numPoints;
-        const pos = outerCurve.getPoint(t);
-        const tangent = outerCurve.getTangent(t);
-
-        // Stack of 3 tires
-        for (let stack = 0; stack < 3; stack++) {
-            const tireGeometry = new THREE.TorusGeometry(0.8, 0.3, 8, 16);
-            const tire = new THREE.Mesh(tireGeometry, tireBarrierMaterial);
-
-            tire.position.set(pos.x, 0.4 + stack * 0.7, pos.z);
-            tire.rotation.x = Math.PI / 2;
-            tire.rotation.z = Math.atan2(-tangent.x, tangent.z);
-
-            scene.add(tire);
-        }
-    }
-
-    // Add tire barriers on inner boundary
-    for (let i = 0; i < numPoints; i += 2) {
+    // WHITE TRACK LIMIT LINES - Inner edge
+    for (let i = 0; i < numPoints; i += 1) {
         const t = i / numPoints;
         const pos = innerCurve.getPoint(t);
         const tangent = innerCurve.getTangent(t);
+        const angle = Math.atan2(tangent.z, tangent.x);
 
-        // Stack of 2 tires on inner boundary
-        for (let stack = 0; stack < 2; stack++) {
-            const tireGeometry = new THREE.TorusGeometry(0.8, 0.3, 8, 16);
-            const tire = new THREE.Mesh(tireGeometry, tireBarrierMaterial);
+        const lineGeometry = new THREE.PlaneGeometry(3, 0.3);
+        const lineMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.8
+        });
+        const line = new THREE.Mesh(lineGeometry, lineMaterial);
+        line.rotation.x = -Math.PI / 2;
+        line.rotation.z = angle;
+        line.position.set(pos.x, 0.02, pos.z);
+        scene.add(line);
+    }
 
-            tire.position.set(pos.x, 0.4 + stack * 0.7, pos.z);
-            tire.rotation.x = Math.PI / 2;
-            tire.rotation.z = Math.atan2(-tangent.x, tangent.z);
+    // WHITE TRACK LIMIT LINES - Outer edge
+    for (let i = 0; i < numPoints; i += 1) {
+        const t = i / numPoints;
+        const pos = outerCurve.getPoint(t);
+        const tangent = outerCurve.getTangent(t);
+        const angle = Math.atan2(tangent.z, tangent.x);
 
-            scene.add(tire);
-        }
+        const lineGeometry = new THREE.PlaneGeometry(3, 0.3);
+        const lineMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.8
+        });
+        const line = new THREE.Mesh(lineGeometry, lineMaterial);
+        line.rotation.x = -Math.PI / 2;
+        line.rotation.z = angle;
+        line.position.set(pos.x, 0.02, pos.z);
+        scene.add(line);
+    }
+
+    // RED & WHITE STRIPED KERBS - Inner edge (low kerbs just beyond white line)
+    const kerbInnerPoints = points.map(p => new THREE.Vector3(p.x * 0.75, 0, p.z * 0.75));
+    const kerbInnerCurve = new THREE.CatmullRomCurve3(kerbInnerPoints);
+
+    for (let i = 0; i < numPoints; i++) {
+        const t = i / numPoints;
+        const pos = kerbInnerCurve.getPoint(t);
+        const tangent = kerbInnerCurve.getTangent(t);
+        const angle = Math.atan2(tangent.z, tangent.x);
+        const isRed = i % 2 === 0;
+
+        const kerbGeometry = new THREE.BoxGeometry(2, 0.08, 0.6);
+        const kerb = new THREE.Mesh(kerbGeometry, isRed ? redMaterial : whiteMaterial);
+        kerb.position.set(pos.x, 0.04, pos.z);
+        kerb.rotation.y = angle;
+        kerb.castShadow = true;
+        scene.add(kerb);
+    }
+
+    // RED & WHITE STRIPED KERBS - Outer edge
+    const kerbOuterPoints = points.map(p => new THREE.Vector3(p.x * 1.55, 0, p.z * 1.55));
+    const kerbOuterCurve = new THREE.CatmullRomCurve3(kerbOuterPoints);
+
+    for (let i = 0; i < numPoints; i++) {
+        const t = i / numPoints;
+        const pos = kerbOuterCurve.getPoint(t);
+        const tangent = kerbOuterCurve.getTangent(t);
+        const angle = Math.atan2(tangent.z, tangent.x);
+        const isRed = i % 2 === 1;
+
+        const kerbGeometry = new THREE.BoxGeometry(2, 0.08, 0.6);
+        const kerb = new THREE.Mesh(kerbGeometry, isRed ? redMaterial : whiteMaterial);
+        kerb.position.set(pos.x, 0.04, pos.z);
+        kerb.rotation.y = angle;
+        kerb.castShadow = true;
+        scene.add(kerb);
+    }
+
+    // GRASS STRIPS - Just beyond kerbs on both sides
+    const grassMaterial = new THREE.MeshStandardMaterial({
+        color: 0x2d5016,
+        roughness: 0.95
+    });
+
+    // Inner grass
+    const grassInnerPoints = points.map(p => new THREE.Vector3(p.x * 0.68, 0, p.z * 0.68));
+    const grassInnerCurve = new THREE.CatmullRomCurve3(grassInnerPoints);
+
+    for (let i = 0; i < numPoints; i += 1) {
+        const t = i / numPoints;
+        const pos = grassInnerCurve.getPoint(t);
+        const tangent = grassInnerCurve.getTangent(t);
+        const angle = Math.atan2(tangent.z, tangent.x);
+
+        const grassGeometry = new THREE.PlaneGeometry(3, 3);
+        const grass = new THREE.Mesh(grassGeometry, grassMaterial);
+        grass.rotation.x = -Math.PI / 2;
+        grass.rotation.z = angle;
+        grass.position.set(pos.x, -0.05, pos.z);
+        grass.receiveShadow = true;
+        scene.add(grass);
+    }
+
+    // Outer grass
+    const grassOuterPoints = points.map(p => new THREE.Vector3(p.x * 1.65, 0, p.z * 1.65));
+    const grassOuterCurve = new THREE.CatmullRomCurve3(grassOuterPoints);
+
+    for (let i = 0; i < numPoints; i += 1) {
+        const t = i / numPoints;
+        const pos = grassOuterCurve.getPoint(t);
+        const tangent = grassOuterCurve.getTangent(t);
+        const angle = Math.atan2(tangent.z, tangent.x);
+
+        const grassGeometry = new THREE.PlaneGeometry(3, 3);
+        const grass = new THREE.Mesh(grassGeometry, grassMaterial);
+        grass.rotation.x = -Math.PI / 2;
+        grass.rotation.z = angle;
+        grass.position.set(pos.x, -0.05, pos.z);
+        grass.receiveShadow = true;
+        scene.add(grass);
     }
 
     // Grandstands with crowds
@@ -648,13 +695,9 @@ function createCircuit() {
     // Mountains in background
     createMountains();
 
-    // Grass around track
-    const grassGeometry = new THREE.PlaneGeometry(1200, 1200);
-    const grassMaterial = new THREE.MeshStandardMaterial({
-        color: 0x2d5016,
-        roughness: 0.95
-    });
-    const grass = new THREE.Mesh(grassGeometry, grassMaterial);
+    // Grass around track (reuse material from above)
+    const largeGrassGeometry = new THREE.PlaneGeometry(1200, 1200);
+    const grass = new THREE.Mesh(largeGrassGeometry, grassMaterial);
     grass.rotation.x = -Math.PI / 2;
     grass.position.y = -0.1;
     grass.receiveShadow = true;
@@ -2091,17 +2134,17 @@ function checkTrackBoundaries() {
 
     let innerRadius, outerRadius;
 
-    // Calculate track boundaries based on layout type
+    // Calculate track boundaries based on layout type (WIDER TRACK)
     if (layout.type === 'circular') {
-        innerRadius = layout.radius * 0.85;  // Inner boundary
-        outerRadius = layout.radius * 1.45;  // Outer boundary
+        innerRadius = layout.radius * 0.8;   // Inner boundary (wider track)
+        outerRadius = layout.radius * 1.5;   // Outer boundary (wider track)
     } else if (layout.type === 'oval') {
-        innerRadius = Math.min(layout.width, layout.height) * 0.35;
-        outerRadius = Math.max(layout.width, layout.height) * 0.65;
+        innerRadius = Math.min(layout.width, layout.height) * 0.4;
+        outerRadius = Math.max(layout.width, layout.height) * 0.75;
     } else {
-        // For complex tracks, use rough estimates
-        innerRadius = 150;
-        outerRadius = 280;
+        // For complex tracks, use rough estimates (wider)
+        innerRadius = 160;
+        outerRadius = 300;
     }
 
     const distanceFromCenter = Math.sqrt(carPos.x * carPos.x + carPos.z * carPos.z);
@@ -2407,9 +2450,9 @@ function updateAICars(dt) {
         const dz = ai.position.z - centerZ;
         const distanceFromCenter = Math.sqrt(dx * dx + dz * dz);
 
-        // Each AI car has a slightly different racing line WITHIN track bounds
-        const lineVariation = (index % 3) * 0.02; // Smaller variation to stay on track
-        const targetRadius = trackRadius * (1.02 + lineVariation); // Much closer to track center
+        // Each AI car has a slightly different racing line for variety (WIDER TRACK)
+        const lineVariation = (index % 3) * 0.05; // Different racing lines
+        const targetRadius = trackRadius * (1.1 + lineVariation); // Racing line on wider track
         const currentAngle = Math.atan2(dz, dx);
 
         // AI tries to stay on racing line (within track boundaries)
@@ -2502,10 +2545,10 @@ function updateAICars(dt) {
         ai.position.x += forward.x * velocityMS * dt;
         ai.position.z += forward.z * velocityMS * dt;
 
-        // AI boundary collision check
+        // AI boundary collision check (WIDER TRACK)
         const aiDistFromCenter = Math.sqrt(ai.position.x * ai.position.x + ai.position.z * ai.position.z);
-        const innerBound = trackRadius * 0.85;
-        const outerBound = trackRadius * 1.45;
+        const innerBound = trackRadius * 0.8;
+        const outerBound = trackRadius * 1.5;
 
         if (aiDistFromCenter > outerBound) {
             const aiAngle = Math.atan2(ai.position.z, ai.position.x);
