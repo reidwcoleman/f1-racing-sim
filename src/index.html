@@ -386,8 +386,23 @@
             <div class="system-indicator" id="ers-indicator">
                 <strong>ERS:</strong> <span id="ers-level">100%</span>
             </div>
+            <div class="system-indicator" id="pit-indicator">
+                <strong>PIT:</strong> <span id="pit-status">NOT AVAILABLE</span>
+            </div>
             <div class="system-indicator">
                 <strong>Traction:</strong> <span id="tc-level">Medium</span>
+            </div>
+        </div>
+
+        <!-- Pit Stop Overlay -->
+        <div id="pit-stop-overlay" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.95); padding: 40px; border-radius: 15px; border: 3px solid #e10600; z-index: 500; text-align: center;">
+            <h2 style="color: #e10600; font-size: 36px; margin-bottom: 20px;">🔧 PIT STOP</h2>
+            <div style="font-size: 48px; color: #ffd700; margin: 20px 0;">
+                <span id="pit-timer">3.0</span>s
+            </div>
+            <div style="margin-top: 20px;">
+                <div style="margin: 10px 0;">🏁 Changing Tires...</div>
+                <div style="margin: 10px 0;">🔧 Repairing Damage...</div>
             </div>
         </div>
 

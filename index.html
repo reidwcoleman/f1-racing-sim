@@ -40,16 +40,18 @@
             z-index: 10;
         }
 
-        /* Telemetry Dashboard */
+        /* Telemetry Dashboard - Modernized */
         #telemetry {
             position: absolute;
             top: 10px;
             left: 10px;
-            background: rgba(0, 0, 0, 0.85);
-            border: 2px solid #e10600;
-            border-radius: 5px;
-            padding: 15px;
-            min-width: 300px;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9) 0%, rgba(20, 20, 30, 0.9) 100%);
+            border: 2px solid #00d9ff;
+            border-radius: 12px;
+            padding: 18px;
+            min-width: 320px;
+            box-shadow: 0 8px 32px rgba(0, 217, 255, 0.3);
+            backdrop-filter: blur(10px);
         }
 
         .telemetry-row {
@@ -65,27 +67,32 @@
         }
 
         .telemetry-value {
-            color: #0f0;
+            color: #00ff88;
             font-family: 'Courier New', monospace;
+            text-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
         }
 
         .telemetry-value.warning {
-            color: #ff0;
+            color: #ffcc00;
+            text-shadow: 0 0 8px rgba(255, 204, 0, 0.5);
         }
 
         .telemetry-value.danger {
-            color: #f00;
+            color: #ff3366;
+            text-shadow: 0 0 8px rgba(255, 51, 102, 0.5);
         }
 
-        /* Tire Temps */
+        /* Tire Temps - Modernized */
         #tire-temps {
             position: absolute;
             bottom: 20px;
             left: 20px;
-            background: rgba(0, 0, 0, 0.85);
-            border: 2px solid #e10600;
-            padding: 10px;
-            border-radius: 5px;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9) 0%, rgba(20, 20, 30, 0.9) 100%);
+            border: 2px solid #00d9ff;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 217, 255, 0.3);
+            backdrop-filter: blur(10px);
         }
 
         .tire-grid {
@@ -113,16 +120,18 @@
             background: #113311;
         }
 
-        /* Lap Times */
+        /* Lap Times - Modernized */
         #lap-times {
             position: absolute;
             top: 10px;
             right: 10px;
-            background: rgba(0, 0, 0, 0.85);
-            border: 2px solid #e10600;
-            padding: 15px;
-            border-radius: 5px;
-            min-width: 250px;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9) 0%, rgba(20, 20, 30, 0.9) 100%);
+            border: 2px solid #00d9ff;
+            padding: 18px;
+            border-radius: 12px;
+            min-width: 280px;
+            box-shadow: 0 8px 32px rgba(0, 217, 255, 0.3);
+            backdrop-filter: blur(10px);
         }
 
         .lap-time-entry {
@@ -138,15 +147,17 @@
             border-color: #ffd700;
         }
 
-        /* DRS/ERS Indicators */
+        /* DRS/ERS Indicators - Modernized */
         #systems {
             position: absolute;
             bottom: 20px;
             right: 20px;
-            background: rgba(0, 0, 0, 0.85);
-            border: 2px solid #e10600;
-            padding: 15px;
-            border-radius: 5px;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9) 0%, rgba(20, 20, 30, 0.9) 100%);
+            border: 2px solid #00d9ff;
+            padding: 18px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 217, 255, 0.3);
+            backdrop-filter: blur(10px);
         }
 
         .system-indicator {
@@ -158,33 +169,114 @@
         }
 
         .system-indicator.active {
-            border-left-color: #0f0;
-            background: #113311;
+            border-left-color: #00ff88;
+            background: linear-gradient(90deg, rgba(0, 255, 136, 0.2) 0%, rgba(0, 0, 0, 0) 100%);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
         }
 
         .system-indicator.available {
-            border-left-color: #ff0;
+            border-left-color: #ffcc00;
+            background: linear-gradient(90deg, rgba(255, 204, 0, 0.15) 0%, rgba(0, 0, 0, 0) 100%);
         }
 
-        /* Speedometer */
+        /* Speedometer - Enhanced Super Star Car Style */
         #speedometer {
             position: absolute;
             bottom: 150px;
             right: 20px;
             text-align: center;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9) 0%, rgba(20, 20, 30, 0.9) 100%);
+            padding: 25px 40px;
+            border-radius: 20px;
+            border: 3px solid #00d9ff;
+            box-shadow: 0 12px 48px rgba(0, 217, 255, 0.4);
+            backdrop-filter: blur(10px);
         }
 
         #speed {
-            font-size: 60px;
+            font-size: 72px;
             font-weight: bold;
-            color: #e10600;
-            text-shadow: 0 0 10px #e10600;
+            background: linear-gradient(135deg, #00d9ff 0%, #00ff88 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(0, 217, 255, 0.8);
+            filter: drop-shadow(0 0 20px rgba(0, 217, 255, 0.6));
         }
 
         #gear {
-            font-size: 40px;
+            font-size: 48px;
             color: #fff;
-            margin-top: 10px;
+            margin-top: 12px;
+            text-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+        }
+
+        /* Large Position Indicator - Super Star Car Style */
+        #position-indicator {
+            position: absolute;
+            top: 50%;
+            left: 30px;
+            transform: translateY(-50%);
+            background: linear-gradient(135deg, rgba(0, 217, 255, 0.15) 0%, rgba(0, 255, 136, 0.15) 100%);
+            border: 3px solid #00d9ff;
+            border-radius: 15px;
+            padding: 20px 25px;
+            box-shadow: 0 12px 48px rgba(0, 217, 255, 0.4);
+            backdrop-filter: blur(10px);
+        }
+
+        #position-large {
+            font-size: 84px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #00d9ff 0%, #00ff88 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 20px rgba(0, 217, 255, 0.8));
+            line-height: 1;
+        }
+
+        #position-suffix {
+            font-size: 32px;
+            color: #00d9ff;
+            vertical-align: super;
+            margin-left: 5px;
+        }
+
+        #total-cars {
+            font-size: 24px;
+            color: #aaa;
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        /* Fade-in animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        #telemetry, #lap-times, #systems, #tire-temps {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .system-indicator.active {
+            animation: pulse 2s ease-in-out infinite;
         }
 
         /* Setup Menu */
@@ -330,6 +422,14 @@
                 <span class="telemetry-label">Lap:</span>
                 <span class="telemetry-value" id="tel-lap">1 / 10</span>
             </div>
+        </div>
+
+        <!-- Large Position Indicator (Super Star Car Style) -->
+        <div id="position-indicator">
+            <div>
+                <span id="position-large">1</span><span id="position-suffix">st</span>
+            </div>
+            <div id="total-cars">/ 6</div>
         </div>
 
         <!-- Mini-Map -->

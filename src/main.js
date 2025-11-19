@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 
 // Career Mode State
 const careerState = {
@@ -74,7 +78,13 @@ const gameState = {
     // Tire wear & damage
     tireWear: 100, // 100 = new tires, 0 = destroyed
     damage: 0, // 0 = no damage, 100 = totaled
-    needsPitStop: false
+    needsPitStop: false,
+    // Pit stop system
+    inPitLane: false,
+    inPitStop: false,
+    pitStopTimer: 0,
+    pitStopDuration: 3.0, // 3 seconds for pit stop
+    canEnterPits: false
 };
 
 // Starting light gantry meshes (will be created later)
@@ -149,6 +159,49 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.getElementById('canvas-container').appendChild(renderer.domElement);
 
+// Post-processing for stunning visual effects
+const composer = new EffectComposer(renderer);
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
+
+// Bloom effect for glowing lights, exhaust, and reflections
+const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    0.6,  // strength
+    0.4,  // radius
+    0.85  // threshold
+);
+composer.addPass(bloomPass);
+
+// Vignette shader for cinematic focus
+const vignetteShader = {
+    uniforms: {
+        tDiffuse: { value: null },
+        offset: { value: 0.95 },
+        darkness: { value: 1.2 }
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float offset;
+        uniform float darkness;
+        varying vec2 vUv;
+        void main() {
+            vec4 texel = texture2D(tDiffuse, vUv);
+            vec2 uv = (vUv - vec2(0.5)) * vec2(offset);
+            gl_FragColor = vec4(mix(texel.rgb, vec3(0.0), dot(uv, uv) * darkness), texel.a);
+        }
+    `
+};
+const vignettePass = new ShaderPass(vignetteShader);
+composer.addPass(vignettePass);
+
 // Enhanced Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
 scene.add(ambientLight);
@@ -168,6 +221,89 @@ scene.add(sunLight);
 
 const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x545454, 0.5);
 scene.add(hemisphereLight);
+
+// Particle systems for visual effects
+const particleSystems = {
+    tireSmoke: [],
+    sparks: [],
+    dust: []
+};
+
+// Create particle for tire smoke
+function createSmokeParticle(position) {
+    const smokeGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+    const smokeMaterial = new THREE.MeshBasicMaterial({
+        color: 0x888888,
+        transparent: true,
+        opacity: 0.6
+    });
+    const smoke = new THREE.Mesh(smokeGeometry, smokeMaterial);
+    smoke.position.copy(position);
+    smoke.position.y = 0.2;
+    smoke.life = 1.0; // lifetime in seconds
+    smoke.velocity = new THREE.Vector3(
+        (Math.random() - 0.5) * 2,
+        Math.random() * 2,
+        (Math.random() - 0.5) * 2
+    );
+    scene.add(smoke);
+    particleSystems.tireSmoke.push(smoke);
+}
+
+// Create spark particle
+function createSparkParticle(position) {
+    const sparkGeometry = new THREE.SphereGeometry(0.1, 4, 4);
+    const sparkMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffaa00,
+        transparent: true,
+        opacity: 1.0
+    });
+    const spark = new THREE.Mesh(sparkGeometry, sparkMaterial);
+    spark.position.copy(position);
+    spark.life = 0.3; // lifetime in seconds
+    spark.velocity = new THREE.Vector3(
+        (Math.random() - 0.5) * 8,
+        Math.random() * 6,
+        (Math.random() - 0.5) * 8
+    );
+    scene.add(spark);
+    particleSystems.sparks.push(spark);
+}
+
+// Update particles
+function updateParticles(deltaTime) {
+    // Update tire smoke
+    for (let i = particleSystems.tireSmoke.length - 1; i >= 0; i--) {
+        const smoke = particleSystems.tireSmoke[i];
+        smoke.life -= deltaTime;
+        smoke.position.add(smoke.velocity.clone().multiplyScalar(deltaTime));
+        smoke.scale.addScalar(deltaTime * 2); // expand
+        smoke.material.opacity = smoke.life * 0.6;
+
+        if (smoke.life <= 0) {
+            scene.remove(smoke);
+            smoke.geometry.dispose();
+            smoke.material.dispose();
+            particleSystems.tireSmoke.splice(i, 1);
+        }
+    }
+
+    // Update sparks
+    for (let i = particleSystems.sparks.length - 1; i >= 0; i--) {
+        const spark = particleSystems.sparks[i];
+        spark.life -= deltaTime;
+        spark.position.add(spark.velocity.clone().multiplyScalar(deltaTime));
+        spark.velocity.y -= 9.8 * deltaTime; // gravity
+        spark.material.opacity = spark.life / 0.3;
+
+        if (spark.life <= 0 || spark.position.y < 0) {
+            scene.remove(spark);
+            spark.geometry.dispose();
+            spark.material.dispose();
+            particleSystems.sparks.splice(i, 1);
+        }
+    }
+}
 
 // Add volumetric clouds
 function createClouds() {
@@ -977,33 +1113,145 @@ function createStartingGrid(trackRadius) {
     });
 }
 
+// Create Pit Lane Markers
+function createPitLaneMarkers() {
+    // Pit lane entry zone (offset from track, near start/finish)
+    const pitEntryZone = {
+        x: 210,
+        z: -5,
+        width: 50,
+        depth: 30
+    };
+
+    // Pit lane entry box (yellow/white striped)
+    const entryGeometry = new THREE.PlaneGeometry(pitEntryZone.width, pitEntryZone.depth);
+    const entryMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffff00,
+        transparent: true,
+        opacity: 0.4,
+        side: THREE.DoubleSide
+    });
+    const entryBox = new THREE.Mesh(entryGeometry, entryMaterial);
+    entryBox.rotation.x = -Math.PI / 2;
+    entryBox.position.set(pitEntryZone.x, 0.05, pitEntryZone.z);
+    scene.add(entryBox);
+
+    // Pit lane entry arrow
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0);
+    arrowShape.lineTo(5, 10);
+    arrowShape.lineTo(2.5, 10);
+    arrowShape.lineTo(2.5, 20);
+    arrowShape.lineTo(-2.5, 20);
+    arrowShape.lineTo(-2.5, 10);
+    arrowShape.lineTo(-5, 10);
+    arrowShape.closePath();
+
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+    const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+    arrow.rotation.x = -Math.PI / 2;
+    arrow.position.set(pitEntryZone.x, 0.06, pitEntryZone.z);
+    scene.add(arrow);
+
+    // "PIT" text marker
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 60px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('PIT LANE', 128, 64);
+
+    const textTexture = new THREE.CanvasTexture(canvas);
+    const textMaterial = new THREE.MeshBasicMaterial({
+        map: textTexture,
+        transparent: true
+    });
+    const textPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(20, 10),
+        textMaterial
+    );
+    textPlane.rotation.x = -Math.PI / 2;
+    textPlane.position.set(pitEntryZone.x, 0.07, pitEntryZone.z - 15);
+    scene.add(textPlane);
+
+    // Pit lane speed limit sign
+    const signCanvas = document.createElement('canvas');
+    signCanvas.width = 128;
+    signCanvas.height = 128;
+    const signCtx = signCanvas.getContext('2d');
+
+    // Red circle
+    signCtx.strokeStyle = '#ff0000';
+    signCtx.lineWidth = 8;
+    signCtx.beginPath();
+    signCtx.arc(64, 64, 55, 0, Math.PI * 2);
+    signCtx.stroke();
+
+    // Speed limit text
+    signCtx.fillStyle = '#000000';
+    signCtx.font = 'bold 50px Arial';
+    signCtx.textAlign = 'center';
+    signCtx.textBaseline = 'middle';
+    signCtx.fillText('60', 64, 64);
+
+    const signTexture = new THREE.CanvasTexture(signCanvas);
+    const signMaterial = new THREE.MeshBasicMaterial({
+        map: signTexture,
+        transparent: true
+    });
+    const signPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(4, 4),
+        signMaterial
+    );
+    signPlane.position.set(pitEntryZone.x + 20, 3, pitEntryZone.z);
+    signPlane.lookAt(new THREE.Vector3(0, 3, 0));
+    scene.add(signPlane);
+}
+
 // Create Ultra-Realistic Slender F1 Car with Driver
 function createF1Car(color = 0xe10600, startPosition = null) {
     const car = new THREE.Group();
 
-    // Materials
+    // Materials - Enhanced with chrome and reflective properties
     const carbonMaterial = new THREE.MeshStandardMaterial({
         color: 0x0a0a0a,
-        metalness: 0.9,
-        roughness: 0.15
+        metalness: 1.0,
+        roughness: 0.05,
+        envMapIntensity: 1.5
     });
 
     const liveryMaterial = new THREE.MeshStandardMaterial({
         color: color,
-        metalness: 0.8,
-        roughness: 0.15
+        metalness: 0.95,
+        roughness: 0.08,
+        envMapIntensity: 1.8,
+        emissive: color,
+        emissiveIntensity: 0.05
     });
 
     const whiteMaterial = new THREE.MeshStandardMaterial({
         color: 0xffffff,
-        metalness: 0.3,
-        roughness: 0.5
+        metalness: 0.6,
+        roughness: 0.2,
+        envMapIntensity: 1.2
     });
 
     const wingMaterial = new THREE.MeshStandardMaterial({
         color: 0x000000,
-        metalness: 0.8,
-        roughness: 0.2
+        metalness: 1.0,
+        roughness: 0.08,
+        envMapIntensity: 1.5
+    });
+
+    const chromeMaterial = new THREE.MeshStandardMaterial({
+        color: 0xcccccc,
+        metalness: 1.0,
+        roughness: 0.02,
+        envMapIntensity: 2.0
     });
 
     // SLENDER MONOCOQUE (narrow F1 chassis - 0.8m wide, 4.5m long)
@@ -1236,16 +1484,18 @@ function createF1Car(color = 0xe10600, startPosition = null) {
         sidewall.rotation.z = Math.PI / 2;
         wheelGroup.add(sidewall);
 
-        // Rim (lightweight magnesium)
+        // Rim (lightweight magnesium) - Enhanced chrome finish
         const rimRadius = 0.28;
         const rimGeometry = new THREE.CylinderGeometry(rimRadius, rimRadius, tireWidth * 0.85, 32);
         const rimMaterial = new THREE.MeshStandardMaterial({
-            color: 0x555555,
-            metalness: 0.95,
-            roughness: 0.05
+            color: 0xaaaaaa,
+            metalness: 1.0,
+            roughness: 0.02,
+            envMapIntensity: 2.5
         });
         const rim = new THREE.Mesh(rimGeometry, rimMaterial);
         rim.rotation.z = Math.PI / 2;
+        rim.castShadow = true;
         wheelGroup.add(rim);
 
         // Wheel spokes (5-spoke design)
@@ -1289,19 +1539,25 @@ function createF1Car(color = 0xe10600, startPosition = null) {
         car.wheels.push(tire);
     });
 
-    // Exhaust pipe
+    // Exhaust pipe - Enhanced with heat glow effect
     const exhaustGeometry = new THREE.CylinderGeometry(0.06, 0.06, 0.25, 16);
     const exhaustMaterial = new THREE.MeshStandardMaterial({
         color: 0x1a1a1a,
-        metalness: 0.9,
-        roughness: 0.2,
-        emissive: 0xff3300,
-        emissiveIntensity: 0.3
+        metalness: 1.0,
+        roughness: 0.15,
+        emissive: 0xff4400,
+        emissiveIntensity: 0.8
     });
     const exhaust = new THREE.Mesh(exhaustGeometry, exhaustMaterial);
     exhaust.rotation.x = Math.PI / 2;
     exhaust.position.set(0, 0.2, -2.9);
     car.add(exhaust);
+
+    // Exhaust glow light
+    const exhaustLight = new THREE.PointLight(0xff4400, 0.5, 3);
+    exhaustLight.position.set(0, 0.2, -3.0);
+    car.add(exhaustLight);
+    car.exhaustLight = exhaustLight;
 
     // Number plate on nose
     const numberPlate = new THREE.Mesh(
@@ -1311,6 +1567,31 @@ function createF1Car(color = 0xe10600, startPosition = null) {
     numberPlate.position.set(0, 0.15, 2.8);
     numberPlate.rotation.x = -Math.PI / 2;
     car.add(numberPlate);
+
+    // Sponsor decals - Racing stripes on engine cover
+    const stripeGeometry = new THREE.BoxGeometry(0.12, 0.01, 2.6);
+    const stripeMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        metalness: 0.4,
+        roughness: 0.3,
+        emissive: 0xffffff,
+        emissiveIntensity: 0.1
+    });
+    const stripe1 = new THREE.Mesh(stripeGeometry, stripeMaterial);
+    stripe1.position.set(-0.15, 0.44, -1.1);
+    car.add(stripe1);
+    const stripe2 = new THREE.Mesh(stripeGeometry, stripeMaterial);
+    stripe2.position.set(0.15, 0.44, -1.1);
+    car.add(stripe2);
+
+    // Chrome accents on sidepods
+    const accentGeometry = new THREE.BoxGeometry(0.26, 0.05, 0.8);
+    const accent1 = new THREE.Mesh(accentGeometry, chromeMaterial);
+    accent1.position.set(-0.55, 0.18, 0.5);
+    car.add(accent1);
+    const accent2 = new THREE.Mesh(accentGeometry, chromeMaterial);
+    accent2.position.set(0.55, 0.18, 0.5);
+    car.add(accent2);
 
     scene.add(car);
 
@@ -1389,6 +1670,12 @@ document.addEventListener('keydown', (e) => {
         gameState.rotation = 0;
         playerCar.mesh.position.copy(gameState.position);
         playerCar.mesh.rotation.y = 0;
+    }
+    if (e.key === 'p' || e.key === 'P') {
+        // Enter pit stop if in pit lane
+        if (gameState.canEnterPits && !gameState.inPitStop && gameState.raceStarted) {
+            enterPitStop();
+        }
     }
 });
 
@@ -1477,6 +1764,12 @@ function updateHUD() {
                            playerRacePosition === 3 ? 'rd' : 'th';
     document.getElementById('position').textContent = `${playerRacePosition}${positionSuffix} / ${allCars.length}`;
 
+    // Update large position indicator (Super Star Car style)
+    const positionLargeEl = document.getElementById('position-large');
+    const positionSuffixEl = document.getElementById('position-suffix');
+    if (positionLargeEl) positionLargeEl.textContent = playerRacePosition;
+    if (positionSuffixEl) positionSuffixEl.textContent = positionSuffix;
+
     // DRS/ERS
     document.getElementById('drs-status').textContent = gameState.drsActive ? 'ACTIVE' :
         (gameState.drsAvailable ? 'AVAILABLE' : 'DISABLED');
@@ -1505,6 +1798,98 @@ function formatTime(seconds) {
     const secs = Math.floor(seconds % 60);
     const ms = Math.floor((seconds % 1) * 1000);
     return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+}
+
+// Pit stop system
+function checkPitLaneEntry() {
+    const carPos = gameState.position;
+
+    // Pit lane entry zone is near start/finish line, offset to the side
+    const pitEntryZone = {
+        x: 210,
+        z: -5,
+        width: 50,
+        depth: 30
+    };
+
+    // Check if car is in pit entry zone
+    const inPitZone =
+        carPos.x > pitEntryZone.x - pitEntryZone.width/2 &&
+        carPos.x < pitEntryZone.x + pitEntryZone.width/2 &&
+        carPos.z > pitEntryZone.z - pitEntryZone.depth/2 &&
+        carPos.z < pitEntryZone.z + pitEntryZone.depth/2;
+
+    // Only allow pits after lap 1 and if tire wear or damage is significant
+    gameState.canEnterPits = inPitZone &&
+                             gameState.currentLap > 1 &&
+                             gameState.raceStarted &&
+                             (gameState.tireWear < 50 || gameState.damage > 20);
+
+    // Update HUD indicator
+    const pitStatus = document.getElementById('pit-status');
+    if (pitStatus) {
+        if (gameState.inPitStop) {
+            pitStatus.textContent = 'IN PROGRESS';
+            pitStatus.style.color = '#ffd700';
+        } else if (gameState.canEnterPits) {
+            pitStatus.textContent = 'AVAILABLE (Press P)';
+            pitStatus.style.color = '#00ff00';
+        } else if (gameState.tireWear < 50 || gameState.damage > 20) {
+            pitStatus.textContent = 'NEEDED (Go to pit lane)';
+            pitStatus.style.color = '#ff8800';
+        } else {
+            pitStatus.textContent = 'NOT NEEDED';
+            pitStatus.style.color = '#888';
+        }
+    }
+}
+
+function enterPitStop() {
+    gameState.inPitStop = true;
+    gameState.pitStopTimer = gameState.pitStopDuration;
+    gameState.velocity = 0; // Stop the car
+
+    // Show pit stop overlay
+    const overlay = document.getElementById('pit-stop-overlay');
+    if (overlay) overlay.style.display = 'block';
+}
+
+function updatePitStop(dt) {
+    if (gameState.inPitStop) {
+        gameState.pitStopTimer -= dt;
+
+        // Update timer display
+        const timerDisplay = document.getElementById('pit-timer');
+        if (timerDisplay) {
+            timerDisplay.textContent = Math.max(0, gameState.pitStopTimer).toFixed(1);
+        }
+
+        // Complete pit stop when timer reaches 0
+        if (gameState.pitStopTimer <= 0) {
+            completePitStop();
+        }
+    }
+}
+
+function completePitStop() {
+    // Reset tire wear and damage
+    gameState.tireWear = 100;
+    gameState.damage = 0;
+
+    // Exit pit stop
+    gameState.inPitStop = false;
+    gameState.canEnterPits = false;
+
+    // Hide overlay
+    const overlay = document.getElementById('pit-stop-overlay');
+    if (overlay) overlay.style.display = 'none';
+
+    // Update displays
+    const tireWearBar = document.getElementById('tire-wear-bar');
+    if (tireWearBar) tireWearBar.style.width = '100%';
+
+    const damageBar = document.getElementById('damage-bar');
+    if (damageBar) damageBar.style.width = '0%';
 }
 
 // Check lap completion
@@ -1592,6 +1977,9 @@ function animate(currentTime) {
             accumulator -= fixedTimeStep;
         }
 
+        // Update particles
+        updateParticles(deltaTime);
+
         // Smooth control interpolation
         const lerpFactor = 0.15;
         controls.currentThrottle += (Number(controls.throttle) - controls.currentThrottle) * lerpFactor;
@@ -1623,11 +2011,14 @@ function animate(currentTime) {
         checkCollisions();
         updateKERS(deltaTime);
         drawMiniMap();
+        checkPitLaneEntry();
+        updatePitStop(deltaTime);
 
         updateHUD();
     }
 
-    renderer.render(scene, camera);
+    // Render with post-processing effects
+    composer.render();
 }
 
 function updatePhysics(dt) {
@@ -1917,9 +2308,24 @@ function updateArcadePhysics(dt) {
         gameState.drsActive = false;
     }
 
-    // Braking - powerful F1 brakes
+    // Braking - powerful F1 brakes with tire smoke effect
     if (controls.currentBrake > 0.05) {
         gameState.velocity -= braking * controls.currentBrake * dt;
+
+        // Generate tire smoke when braking hard and moving fast
+        if (controls.currentBrake > 0.3 && gameState.velocity > 80 && Math.random() > 0.7) {
+            // Create smoke from rear wheels
+            const rearLeft = new THREE.Vector3(-0.95, -0.25, -1.8);
+            const rearRight = new THREE.Vector3(0.95, -0.25, -1.8);
+
+            rearLeft.applyQuaternion(playerCar.mesh.quaternion);
+            rearRight.applyQuaternion(playerCar.mesh.quaternion);
+            rearLeft.add(playerCar.mesh.position);
+            rearRight.add(playerCar.mesh.position);
+
+            createSmokeParticle(rearLeft);
+            createSmokeParticle(rearRight);
+        }
     }
 
     // Air resistance (increases with speed squared - realistic)
@@ -2548,6 +2954,7 @@ window.startSimulation = function() {
 
     createCircuit();
     createStartingGrid(200); // Create starting grid positions
+    createPitLaneMarkers(); // Create pit lane visual markers
     createAICars(); // Create AI opponent cars
     animate(0);
 };
@@ -2557,4 +2964,5 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
 });
