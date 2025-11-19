@@ -202,11 +202,11 @@ const vignetteShader = {
 const vignettePass = new ShaderPass(vignetteShader);
 composer.addPass(vignettePass);
 
-// Enhanced Lighting for Night Racing Visibility
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // Brighter for better visibility
+// Bright Daytime Racing Lighting
+const ambientLight = new THREE.AmbientLight(0xffffff, 1.5); // Bright daylight ambient
 scene.add(ambientLight);
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 1.2); // Stronger sun
+const sunLight = new THREE.DirectionalLight(0xffffff, 3.0); // Strong afternoon sun
 sunLight.position.set(100, 200, 100);
 sunLight.castShadow = true;
 sunLight.shadow.camera.left = -200;
@@ -219,11 +219,11 @@ sunLight.shadow.mapSize.height = 2048;
 sunLight.shadow.bias = -0.0001;
 scene.add(sunLight);
 
-const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x545454, 0.7); // Brighter sky light
+const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x8b7355, 1.2); // Bright blue sky, warm ground
 scene.add(hemisphereLight);
 
 // Additional fill light for car visibility
-const fillLight = new THREE.DirectionalLight(0xffffee, 0.4);
+const fillLight = new THREE.DirectionalLight(0xffffee, 0.6);
 fillLight.position.set(-100, 100, -100);
 scene.add(fillLight);
 
@@ -791,7 +791,7 @@ function createGrandstands(curve, numPoints) {
             }
         }
 
-        // Stadium floodlights (for night racing visibility)
+        // Stadium floodlight structures (disabled for daytime racing)
         if (i % 2 === 0) {
             for (let light = 0; light < 2; light++) {
                 // Light pole
@@ -812,12 +812,12 @@ function createGrandstands(curve, numPoints) {
                 pole.castShadow = true;
                 scene.add(pole);
 
-                // Floodlight fixture
+                // Floodlight fixture (not glowing in daytime)
                 const fixtureGeometry = new THREE.BoxGeometry(3, 1.5, 1.5);
                 const fixtureMaterial = new THREE.MeshStandardMaterial({
                     color: 0x222222,
-                    emissive: 0xffff88,
-                    emissiveIntensity: 0.3,
+                    emissive: 0x000000,
+                    emissiveIntensity: 0,
                     roughness: 0.3,
                     metalness: 0.8
                 });
@@ -830,15 +830,15 @@ function createGrandstands(curve, numPoints) {
                 fixture.lookAt(new THREE.Vector3(0, 0, 0));
                 scene.add(fixture);
 
-                // Powerful spotlight for night racing (NO shadows to prevent texture limit)
-                const spotlight = new THREE.SpotLight(0xffffdd, 1.5, 500, Math.PI / 4, 0.3, 1);
+                // Floodlights disabled for daytime racing (intensity set to 0)
+                const spotlight = new THREE.SpotLight(0xffffdd, 0, 500, Math.PI / 4, 0.3, 1);
                 spotlight.position.set(
                     pos.x * 1.22 + Math.cos(angle + Math.PI/2) * lightOffset,
                     35,
                     pos.z * 1.22 + Math.sin(angle + Math.PI/2) * lightOffset
                 );
                 spotlight.target.position.set(pos.x * 0.5, 0, pos.z * 0.5);
-                spotlight.castShadow = false; // Disabled to prevent texture limit error
+                spotlight.castShadow = false;
                 scene.add(spotlight);
                 scene.add(spotlight.target);
             }
@@ -1031,22 +1031,25 @@ function createStartFinishLine(trackRadius) {
         roughness: 0.3
     });
 
+    // Position gantry to the side of the track, not in center
+    const gantryOffset = trackRadius * 0.85; // Position to the right side of track
+
     // Main horizontal beam
     const beamGeometry = new THREE.BoxGeometry(0.4, 0.4, 12);
     const beam = new THREE.Mesh(beamGeometry, gantryMaterial);
-    beam.position.set(trackRadius * 1.15, 8, 0);
+    beam.position.set(gantryOffset, 8, 0);
     beam.castShadow = true;
     startLightGantry.add(beam);
 
     // Support poles
     const poleGeometry = new THREE.CylinderGeometry(0.25, 0.25, 8, 16);
     const poleL = new THREE.Mesh(poleGeometry, gantryMaterial);
-    poleL.position.set(trackRadius * 1.15, 4, -6);
+    poleL.position.set(gantryOffset, 4, -6);
     poleL.castShadow = true;
     startLightGantry.add(poleL);
 
     const poleR = new THREE.Mesh(poleGeometry, gantryMaterial);
-    poleR.position.set(trackRadius * 1.15, 4, 6);
+    poleR.position.set(gantryOffset, 4, 6);
     poleR.castShadow = true;
     startLightGantry.add(poleR);
 
@@ -1090,8 +1093,8 @@ function createStartFinishLine(trackRadius) {
             lightSet.add(pointLight);
         });
 
-        lightSet.position.set(trackRadius * 1.15, 8, -4 + i * 2);
-        lightSet.rotation.y = Math.PI;
+        lightSet.position.set(gantryOffset, 8, -4 + i * 2);
+        lightSet.rotation.y = Math.PI / 2; // Face toward the track
         startLightGantry.add(lightSet);
 
         startLightGantry.lights.push({
@@ -1135,8 +1138,8 @@ function createStartFinishLine(trackRadius) {
         greenPointLights.push(greenPointLight);
     });
 
-    greenLightSet.position.set(trackRadius * 1.15, 10, 0);
-    greenLightSet.rotation.y = Math.PI;
+    greenLightSet.position.set(gantryOffset, 10, 0);
+    greenLightSet.rotation.y = Math.PI / 2; // Face toward the track
     startLightGantry.add(greenLightSet);
 
     startLightGantry.greenLights = {
@@ -2447,16 +2450,52 @@ function updateAICars(dt) {
 
         ai.rotation += rotationDiff * ai.skill * 0.1;
 
+        // AGGRESSIVE RACING - Calculate position relative to player
+        const playerAngle = Math.atan2(gameState.position.z, gameState.position.x);
+        const aiAngle = Math.atan2(ai.position.z, ai.position.x);
+        let angleDiff = playerAngle - aiAngle;
+
+        // Normalize angle difference to -PI to PI
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+        // Calculate if AI is ahead or behind (positive = player ahead, negative = AI ahead)
+        const lapDiff = gameState.currentLap - ai.currentLap;
+        const positionDiff = lapDiff + (angleDiff / (Math.PI * 2));
+
+        // Distance to player
+        const distToPlayer = Math.sqrt(
+            Math.pow(gameState.position.x - ai.position.x, 2) +
+            Math.pow(gameState.position.z - ai.position.z, 2)
+        );
+
+        // RUBBER-BANDING: AI gets faster when behind, slower when ahead
+        let speedBoost = 1.0;
+        if (positionDiff > 0.05) {
+            // Player is ahead - AI speeds up to catch up (AGGRESSIVE)
+            speedBoost = 1.2 + Math.min(positionDiff * 0.3, 0.4);
+        } else if (positionDiff < -0.05) {
+            // AI is ahead - slows down slightly to keep race competitive
+            speedBoost = 0.95 - Math.min(Math.abs(positionDiff) * 0.1, 0.15);
+        }
+
+        // Extra boost when close to player (battle mode)
+        if (distToPlayer < 30 && Math.abs(positionDiff) < 0.1) {
+            speedBoost *= 1.15; // 15% extra speed when racing wheel-to-wheel
+        }
+
+        const adjustedTargetSpeed = ai.targetSpeed * speedBoost;
+
         // AI acceleration and speed control
-        const speedDiff = ai.targetSpeed - ai.velocity;
+        const speedDiff = adjustedTargetSpeed - ai.velocity;
 
         if (speedDiff > 0) {
-            // Accelerate
-            let accelRate = 25 * ai.aggression;
-            if (ai.velocity < 80) accelRate = 35 * ai.aggression;
-            else if (ai.velocity < 140) accelRate = 25 * ai.aggression;
-            else if (ai.velocity < 200) accelRate = 18 * ai.aggression;
-            else accelRate = 10 * ai.aggression;
+            // Accelerate - MORE AGGRESSIVE when chasing player
+            let accelRate = 25 * ai.aggression * (positionDiff > 0 ? 1.3 : 1.0);
+            if (ai.velocity < 80) accelRate = 35 * ai.aggression * (positionDiff > 0 ? 1.3 : 1.0);
+            else if (ai.velocity < 140) accelRate = 25 * ai.aggression * (positionDiff > 0 ? 1.3 : 1.0);
+            else if (ai.velocity < 200) accelRate = 18 * ai.aggression * (positionDiff > 0 ? 1.3 : 1.0);
+            else accelRate = 10 * ai.aggression * (positionDiff > 0 ? 1.3 : 1.0);
 
             ai.velocity += accelRate * dt;
         } else {
@@ -2469,8 +2508,8 @@ function updateAICars(dt) {
         const dragForce = speedRatio * speedRatio * 12;
         ai.velocity -= dragForce * dt;
 
-        // Clamp velocity
-        ai.velocity = Math.max(0, Math.min(ai.targetSpeed, ai.velocity));
+        // Clamp velocity with adjusted target
+        ai.velocity = Math.max(0, Math.min(adjustedTargetSpeed, ai.velocity));
 
         // Move AI car
         const forward = new THREE.Vector3(
