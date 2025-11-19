@@ -1785,8 +1785,13 @@ function updateHUD() {
 }
 
 function updateTireDisplay(tire, temp) {
-    document.getElementById('temp-' + tire).textContent = Math.round(temp) + '°C';
+    const tempElement = document.getElementById('temp-' + tire);
     const tireElement = document.getElementById('tire-' + tire);
+
+    if (!tempElement || !tireElement) return; // Skip if elements don't exist
+
+    tempElement.textContent = Math.round(temp) + '°C';
+
     if (temp > 105) {
         tireElement.className = 'tire hot';
     } else if (temp >= 95 && temp <= 105) {
