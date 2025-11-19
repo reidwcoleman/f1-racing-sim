@@ -544,72 +544,52 @@ function createCircuit() {
     const points = currentTrackPoints;
     const numPoints = points.length - 1;
 
-    // White barrier material with sponsor colors
-    const whiteBarrierMaterial = new THREE.MeshStandardMaterial({
+    // F1-style red and white striped barriers
+    const redMaterial = new THREE.MeshStandardMaterial({
+        color: 0xff0000,
+        roughness: 0.7,
+        metalness: 0.1
+    });
+
+    const whiteMaterial = new THREE.MeshStandardMaterial({
         color: 0xffffff,
-        roughness: 0.6,
-        metalness: 0.2
+        roughness: 0.7,
+        metalness: 0.1
     });
 
-    // Red sponsor logo material
-    const redLogoMaterial = new THREE.MeshStandardMaterial({
-        color: 0xe10600,
-        roughness: 0.5,
-        metalness: 0.3
-    });
-
-    // Blue sponsor logo material
-    const blueLogoMaterial = new THREE.MeshStandardMaterial({
-        color: 0x0066cc,
-        roughness: 0.5,
-        metalness: 0.3
-    });
-
-    // Inner white barriers with logos
+    // Inner curve for barriers
     const innerCurve = new THREE.CatmullRomCurve3(points);
-    const innerGeometry = new THREE.TubeGeometry(innerCurve, numPoints, 3, 8, true);
-    const innerBarrier = new THREE.Mesh(innerGeometry, whiteBarrierMaterial);
-    innerBarrier.position.y = 1.5;
-    innerBarrier.castShadow = true;
-    scene.add(innerBarrier);
 
-    // Add sponsor logo panels on inner barrier
-    for (let i = 0; i < numPoints; i += 4) {
+    // Create red/white striped barriers on inner edge
+    for (let i = 0; i < numPoints; i += 2) {
         const t = i / numPoints;
         const pos = innerCurve.getPoint(t);
-        const tangent = innerCurve.getTangent(t);
+        const isRed = (i / 2) % 2 === 0;
 
-        const logoGeometry = new THREE.BoxGeometry(8, 2, 0.2);
-        const logoMaterial = i % 8 === 0 ? redLogoMaterial : blueLogoMaterial;
-        const logo = new THREE.Mesh(logoGeometry, logoMaterial);
-
-        logo.position.set(pos.x, 2, pos.z);
-        logo.lookAt(new THREE.Vector3(0, 2, 0));
-        scene.add(logo);
+        const barrierGeometry = new THREE.BoxGeometry(6, 1.2, 0.4);
+        const barrier = new THREE.Mesh(barrierGeometry, isRed ? redMaterial : whiteMaterial);
+        barrier.position.set(pos.x, 0.6, pos.z);
+        barrier.lookAt(new THREE.Vector3(0, 0.6, 0));
+        barrier.castShadow = true;
+        scene.add(barrier);
     }
 
-    // Outer white barriers with logos
+    // Outer curve for barriers
     const outerPoints = points.map(p => new THREE.Vector3(p.x * 1.3, 0, p.z * 1.3));
     const outerCurve = new THREE.CatmullRomCurve3(outerPoints);
-    const outerGeometry = new THREE.TubeGeometry(outerCurve, numPoints, 3, 8, true);
-    const outerBarrier = new THREE.Mesh(outerGeometry, whiteBarrierMaterial);
-    outerBarrier.position.y = 1.5;
-    outerBarrier.castShadow = true;
-    scene.add(outerBarrier);
 
-    // Add sponsor logo panels on outer barrier
-    for (let i = 0; i < numPoints; i += 4) {
+    // Create red/white striped barriers on outer edge
+    for (let i = 0; i < numPoints; i += 2) {
         const t = i / numPoints;
         const pos = outerCurve.getPoint(t);
-        const tangent = outerCurve.getTangent(t);
+        const isRed = (i / 2) % 2 === 1; // Offset pattern
 
-        const logoGeometry = new THREE.BoxGeometry(8, 2, 0.2);
-        const logoMaterial = i % 8 === 4 ? redLogoMaterial : blueLogoMaterial;
-        const logo = new THREE.Mesh(logoGeometry, logoMaterial);
-
-        logo.position.set(pos.x, 2, pos.z);
-        logo.lookAt(new THREE.Vector3(0, 2, 0));
-        scene.add(logo);
+        const barrierGeometry = new THREE.BoxGeometry(6, 1.2, 0.4);
+        const barrier = new THREE.Mesh(barrierGeometry, isRed ? redMaterial : whiteMaterial);
+        barrier.position.set(pos.x, 0.6, pos.z);
+        barrier.lookAt(new THREE.Vector3(0, 0.6, 0));
+        barrier.castShadow = true;
+        scene.add(barrier);
     }
 
     // Add tire barriers on outer boundary for F1 realism
@@ -2427,12 +2407,12 @@ function updateAICars(dt) {
         const dz = ai.position.z - centerZ;
         const distanceFromCenter = Math.sqrt(dx * dx + dz * dz);
 
-        // Each AI car has a slightly different racing line for variety
-        const lineVariation = (index % 3) * 0.03; // 0%, 3%, or 6% variation
-        const targetRadius = trackRadius * (1.15 + lineVariation);
+        // Each AI car has a slightly different racing line WITHIN track bounds
+        const lineVariation = (index % 3) * 0.02; // Smaller variation to stay on track
+        const targetRadius = trackRadius * (1.02 + lineVariation); // Much closer to track center
         const currentAngle = Math.atan2(dz, dx);
 
-        // AI tries to stay on racing line
+        // AI tries to stay on racing line (within track boundaries)
         const targetX = Math.cos(currentAngle) * targetRadius;
         const targetZ = Math.sin(currentAngle) * targetRadius;
 
