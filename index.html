@@ -27,6 +27,30 @@
 
         canvas {
             display: block;
+            transition: filter 0.1s ease-out;
+        }
+
+        /* Speed motion blur effect */
+        @keyframes speed-pulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.6; }
+        }
+
+        .speed-vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.7) 100%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 5;
+        }
+
+        .speed-vignette.active {
+            opacity: 1;
         }
 
         /* Professional HUD */
@@ -40,17 +64,16 @@
             z-index: 10;
         }
 
-        /* Telemetry Dashboard - Modernized */
+        /* Telemetry Dashboard */
         #telemetry {
             position: absolute;
             top: 10px;
             left: 10px;
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9) 0%, rgba(20, 20, 30, 0.9) 100%);
-            border: 2px solid #00d9ff;
-            border-radius: 12px;
-            padding: 18px;
-            min-width: 320px;
-            box-shadow: 0 8px 32px rgba(0, 217, 255, 0.3);
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #e10600;
+            border-radius: 8px;
+            padding: 15px;
+            min-width: 300px;
             backdrop-filter: blur(10px);
         }
 
@@ -67,32 +90,27 @@
         }
 
         .telemetry-value {
-            color: #00ff88;
+            color: #0f0;
             font-family: 'Courier New', monospace;
-            text-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
         }
 
         .telemetry-value.warning {
-            color: #ffcc00;
-            text-shadow: 0 0 8px rgba(255, 204, 0, 0.5);
+            color: #ff0;
         }
 
         .telemetry-value.danger {
-            color: #ff3366;
-            text-shadow: 0 0 8px rgba(255, 51, 102, 0.5);
+            color: #f00;
         }
 
-        /* Tire Temps - Modernized */
+        /* Tire Temps */
         #tire-temps {
             position: absolute;
             bottom: 20px;
             left: 20px;
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9) 0%, rgba(20, 20, 30, 0.9) 100%);
-            border: 2px solid #00d9ff;
-            padding: 15px;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 217, 255, 0.3);
-            backdrop-filter: blur(10px);
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #e10600;
+            padding: 10px;
+            border-radius: 5px;
         }
 
         .tire-grid {
@@ -120,17 +138,16 @@
             background: #113311;
         }
 
-        /* Lap Times - Modernized */
+        /* Lap Times */
         #lap-times {
             position: absolute;
             top: 10px;
             right: 10px;
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9) 0%, rgba(20, 20, 30, 0.9) 100%);
-            border: 2px solid #00d9ff;
-            padding: 18px;
-            border-radius: 12px;
-            min-width: 280px;
-            box-shadow: 0 8px 32px rgba(0, 217, 255, 0.3);
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #e10600;
+            padding: 15px;
+            border-radius: 8px;
+            min-width: 250px;
             backdrop-filter: blur(10px);
         }
 
@@ -147,17 +164,15 @@
             border-color: #ffd700;
         }
 
-        /* DRS/ERS Indicators - Modernized */
+        /* DRS/ERS Indicators */
         #systems {
             position: absolute;
             bottom: 20px;
             right: 20px;
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9) 0%, rgba(20, 20, 30, 0.9) 100%);
-            border: 2px solid #00d9ff;
-            padding: 18px;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 217, 255, 0.3);
-            backdrop-filter: blur(10px);
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #e10600;
+            padding: 15px;
+            border-radius: 5px;
         }
 
         .system-indicator {
@@ -169,114 +184,38 @@
         }
 
         .system-indicator.active {
-            border-left-color: #00ff88;
-            background: linear-gradient(90deg, rgba(0, 255, 136, 0.2) 0%, rgba(0, 0, 0, 0) 100%);
-            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+            border-left-color: #0f0;
+            background: #113311;
         }
 
         .system-indicator.available {
-            border-left-color: #ffcc00;
-            background: linear-gradient(90deg, rgba(255, 204, 0, 0.15) 0%, rgba(0, 0, 0, 0) 100%);
+            border-left-color: #ff0;
         }
 
-        /* Speedometer - Enhanced Super Star Car Style */
+        /* Speedometer */
         #speedometer {
             position: absolute;
             bottom: 150px;
             right: 20px;
             text-align: center;
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9) 0%, rgba(20, 20, 30, 0.9) 100%);
-            padding: 25px 40px;
-            border-radius: 20px;
-            border: 3px solid #00d9ff;
-            box-shadow: 0 12px 48px rgba(0, 217, 255, 0.4);
+            background: rgba(0, 0, 0, 0.85);
+            padding: 20px 30px;
+            border-radius: 10px;
+            border: 2px solid #e10600;
             backdrop-filter: blur(10px);
         }
 
         #speed {
-            font-size: 72px;
+            font-size: 60px;
             font-weight: bold;
-            background: linear-gradient(135deg, #00d9ff 0%, #00ff88 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            text-shadow: 0 0 30px rgba(0, 217, 255, 0.8);
-            filter: drop-shadow(0 0 20px rgba(0, 217, 255, 0.6));
+            color: #e10600;
+            font-family: 'Arial', sans-serif;
         }
 
         #gear {
-            font-size: 48px;
+            font-size: 40px;
             color: #fff;
-            margin-top: 12px;
-            text-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
-        }
-
-        /* Large Position Indicator - Super Star Car Style */
-        #position-indicator {
-            position: absolute;
-            top: 50%;
-            left: 30px;
-            transform: translateY(-50%);
-            background: linear-gradient(135deg, rgba(0, 217, 255, 0.15) 0%, rgba(0, 255, 136, 0.15) 100%);
-            border: 3px solid #00d9ff;
-            border-radius: 15px;
-            padding: 20px 25px;
-            box-shadow: 0 12px 48px rgba(0, 217, 255, 0.4);
-            backdrop-filter: blur(10px);
-        }
-
-        #position-large {
-            font-size: 84px;
-            font-weight: bold;
-            background: linear-gradient(135deg, #00d9ff 0%, #00ff88 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            filter: drop-shadow(0 0 20px rgba(0, 217, 255, 0.8));
-            line-height: 1;
-        }
-
-        #position-suffix {
-            font-size: 32px;
-            color: #00d9ff;
-            vertical-align: super;
-            margin-left: 5px;
-        }
-
-        #total-cars {
-            font-size: 24px;
-            color: #aaa;
-            margin-top: 8px;
-            text-align: center;
-        }
-
-        /* Fade-in animations */
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes pulse {
-            0%, 100% {
-                opacity: 1;
-            }
-            50% {
-                opacity: 0.7;
-            }
-        }
-
-        #telemetry, #lap-times, #systems, #tire-temps {
-            animation: fadeIn 0.5s ease-out;
-        }
-
-        .system-indicator.active {
-            animation: pulse 2s ease-in-out infinite;
+            margin-top: 10px;
         }
 
         /* Setup Menu */
@@ -381,10 +320,13 @@
             display: none;
         }
     </style>
-  <script type="module" crossorigin src="./assets/index-BWdLUyjH.js"></script>
+    <script type="module" src="./main.js"></script>
 </head>
 <body>
-    <div id="canvas-container"></div>
+    <div id="canvas-container">
+        <!-- Speed vignette effect -->
+        <div class="speed-vignette" id="speed-vignette"></div>
+    </div>
 
     <div id="hud">
         <!-- Telemetry Dashboard -->
@@ -422,14 +364,6 @@
                 <span class="telemetry-label">Lap:</span>
                 <span class="telemetry-value" id="tel-lap">1 / 10</span>
             </div>
-        </div>
-
-        <!-- Large Position Indicator (Super Star Car Style) -->
-        <div id="position-indicator">
-            <div>
-                <span id="position-large">1</span><span id="position-suffix">st</span>
-            </div>
-            <div id="total-cars">/ 6</div>
         </div>
 
         <!-- Mini-Map -->
@@ -486,8 +420,23 @@
             <div class="system-indicator" id="ers-indicator">
                 <strong>ERS:</strong> <span id="ers-level">100%</span>
             </div>
+            <div class="system-indicator" id="pit-indicator">
+                <strong>PIT:</strong> <span id="pit-status">NOT AVAILABLE</span>
+            </div>
             <div class="system-indicator">
                 <strong>Traction:</strong> <span id="tc-level">Medium</span>
+            </div>
+        </div>
+
+        <!-- Pit Stop Overlay -->
+        <div id="pit-stop-overlay" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.95); padding: 40px; border-radius: 15px; border: 3px solid #e10600; z-index: 500; text-align: center;">
+            <h2 style="color: #e10600; font-size: 36px; margin-bottom: 20px;">🔧 PIT STOP</h2>
+            <div style="font-size: 48px; color: #ffd700; margin: 20px 0;">
+                <span id="pit-timer">3.0</span>s
+            </div>
+            <div style="margin-top: 20px;">
+                <div style="margin: 10px 0;">🏁 Changing Tires...</div>
+                <div style="margin: 10px 0;">🔧 Repairing Damage...</div>
             </div>
         </div>
 
