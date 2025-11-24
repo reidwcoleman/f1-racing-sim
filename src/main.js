@@ -3,6 +3,10 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
+import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 
 // Career Mode State
 const careerState = {
@@ -202,6 +206,193 @@ const vignetteShader = {
 const vignettePass = new ShaderPass(vignetteShader);
 composer.addPass(vignettePass);
 
+// SMAA Anti-aliasing (better than FXAA)
+const smaaPass = new SMAAPass(window.innerWidth, window.innerHeight);
+composer.addPass(smaaPass);
+
+// Motion Blur Shader (speed-based)
+const motionBlurShader = {
+    uniforms: {
+        tDiffuse: { value: null },
+        velocityFactor: { value: 0.0 },
+        direction: { value: new THREE.Vector2(0, 0) }
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float velocityFactor;
+        uniform vec2 direction;
+        varying vec2 vUv;
+
+        void main() {
+            vec4 color = vec4(0.0);
+            float total = 0.0;
+            vec2 blurDir = direction * velocityFactor * 0.02;
+
+            for (float i = -4.0; i <= 4.0; i += 1.0) {
+                vec2 offset = blurDir * i;
+                float weight = 1.0 - abs(i) / 5.0;
+                color += texture2D(tDiffuse, vUv + offset) * weight;
+                total += weight;
+            }
+
+            gl_FragColor = color / total;
+        }
+    `
+};
+const motionBlurPass = new ShaderPass(motionBlurShader);
+composer.addPass(motionBlurPass);
+
+// Film Grain for cinematic look
+const filmGrainShader = {
+    uniforms: {
+        tDiffuse: { value: null },
+        time: { value: 0.0 },
+        intensity: { value: 0.08 }
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float time;
+        uniform float intensity;
+        varying vec2 vUv;
+
+        float random(vec2 co) {
+            return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+        }
+
+        void main() {
+            vec4 color = texture2D(tDiffuse, vUv);
+            float grain = random(vUv + time) * intensity;
+            color.rgb += grain - intensity * 0.5;
+            gl_FragColor = color;
+        }
+    `
+};
+const filmGrainPass = new ShaderPass(filmGrainShader);
+composer.addPass(filmGrainPass);
+
+// Chromatic Aberration for lens effect
+const chromaticAberrationShader = {
+    uniforms: {
+        tDiffuse: { value: null },
+        amount: { value: 0.003 }
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float amount;
+        varying vec2 vUv;
+
+        void main() {
+            vec2 dir = vUv - vec2(0.5);
+            float dist = length(dir);
+            vec2 offset = dir * dist * amount;
+
+            float r = texture2D(tDiffuse, vUv + offset).r;
+            float g = texture2D(tDiffuse, vUv).g;
+            float b = texture2D(tDiffuse, vUv - offset).b;
+
+            gl_FragColor = vec4(r, g, b, 1.0);
+        }
+    `
+};
+const chromaticPass = new ShaderPass(chromaticAberrationShader);
+composer.addPass(chromaticPass);
+
+// HDR Environment Map for realistic reflections
+let envMap = null;
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+pmremGenerator.compileEquirectangularShader();
+
+// Create procedural HDR environment (no external file needed)
+function createProceduralEnvMap() {
+    const envScene = new THREE.Scene();
+
+    // Create gradient sky for environment
+    const envSkyGeo = new THREE.SphereGeometry(500, 32, 32);
+    const envSkyMat = new THREE.ShaderMaterial({
+        uniforms: {
+            topColor: { value: new THREE.Color(0x0077ff) },
+            bottomColor: { value: new THREE.Color(0xffffff) },
+            sunColor: { value: new THREE.Color(0xffffee) },
+            sunPosition: { value: new THREE.Vector3(100, 200, 100).normalize() }
+        },
+        vertexShader: `
+            varying vec3 vWorldPosition;
+            void main() {
+                vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                vWorldPosition = worldPosition.xyz;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 topColor;
+            uniform vec3 bottomColor;
+            uniform vec3 sunColor;
+            uniform vec3 sunPosition;
+            varying vec3 vWorldPosition;
+
+            void main() {
+                vec3 dir = normalize(vWorldPosition);
+                float h = dir.y * 0.5 + 0.5;
+                vec3 skyColor = mix(bottomColor, topColor, pow(h, 0.6));
+
+                // Add sun glow
+                float sunDot = max(dot(dir, sunPosition), 0.0);
+                vec3 sunGlow = sunColor * pow(sunDot, 64.0) * 2.0;
+                sunGlow += sunColor * pow(sunDot, 8.0) * 0.5;
+
+                gl_FragColor = vec4(skyColor + sunGlow, 1.0);
+            }
+        `,
+        side: THREE.BackSide
+    });
+    const envSky = new THREE.Mesh(envSkyGeo, envSkyMat);
+    envScene.add(envSky);
+
+    // Add ground reflection
+    const groundGeo = new THREE.PlaneGeometry(1000, 1000);
+    const groundMat = new THREE.MeshBasicMaterial({ color: 0x333333 });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -50;
+    envScene.add(ground);
+
+    // Generate environment map
+    const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(512, {
+        format: THREE.RGBAFormat,
+        generateMipmaps: true,
+        minFilter: THREE.LinearMipmapLinearFilter
+    });
+
+    const cubeCamera = new THREE.CubeCamera(1, 1000, cubeRenderTarget);
+    cubeCamera.update(renderer, envScene);
+
+    envMap = cubeRenderTarget.texture;
+    scene.environment = envMap;
+
+    return envMap;
+}
+
 // Bright Daytime Racing Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 1.5); // Bright daylight ambient
 scene.add(ambientLight);
@@ -231,28 +422,87 @@ scene.add(fillLight);
 const particleSystems = {
     tireSmoke: [],
     sparks: [],
-    dust: []
+    dust: [],
+    rubber: [],
+    exhaust: []
 };
 
-// Create particle for tire smoke
-function createSmokeParticle(position) {
-    const smokeGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-    const smokeMaterial = new THREE.MeshBasicMaterial({
-        color: 0x888888,
+// Create realistic tire smoke with gradient
+function createSmokeParticle(position, intensity = 1.0) {
+    // Volumetric smoke using multiple overlapping spheres
+    const numLayers = 3;
+    for (let layer = 0; layer < numLayers; layer++) {
+        const size = 0.3 + layer * 0.15;
+        const smokeGeometry = new THREE.SphereGeometry(size, 8, 8);
+        const smokeMaterial = new THREE.MeshBasicMaterial({
+            color: new THREE.Color().setHSL(0, 0, 0.5 + Math.random() * 0.2),
+            transparent: true,
+            opacity: 0.4 * intensity,
+            depthWrite: false
+        });
+        const smoke = new THREE.Mesh(smokeGeometry, smokeMaterial);
+        smoke.position.copy(position);
+        smoke.position.y = 0.2 + layer * 0.1;
+        smoke.position.x += (Math.random() - 0.5) * 0.3;
+        smoke.position.z += (Math.random() - 0.5) * 0.3;
+        smoke.life = 1.5 + Math.random() * 0.5;
+        smoke.velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 3,
+            1.5 + Math.random() * 2,
+            (Math.random() - 0.5) * 3
+        );
+        smoke.initialScale = size;
+        scene.add(smoke);
+        particleSystems.tireSmoke.push(smoke);
+    }
+}
+
+// Create rubber particle (tire debris)
+function createRubberParticle(position) {
+    const rubberGeometry = new THREE.BoxGeometry(0.05, 0.02, 0.08);
+    const rubberMaterial = new THREE.MeshBasicMaterial({
+        color: 0x1a1a1a,
         transparent: true,
-        opacity: 0.6
+        opacity: 0.9
     });
-    const smoke = new THREE.Mesh(smokeGeometry, smokeMaterial);
-    smoke.position.copy(position);
-    smoke.position.y = 0.2;
-    smoke.life = 1.0; // lifetime in seconds
-    smoke.velocity = new THREE.Vector3(
-        (Math.random() - 0.5) * 2,
-        Math.random() * 2,
-        (Math.random() - 0.5) * 2
+    const rubber = new THREE.Mesh(rubberGeometry, rubberMaterial);
+    rubber.position.copy(position);
+    rubber.position.y = 0.1;
+    rubber.life = 2.0;
+    rubber.velocity = new THREE.Vector3(
+        (Math.random() - 0.5) * 8,
+        Math.random() * 3,
+        (Math.random() - 0.5) * 8
     );
-    scene.add(smoke);
-    particleSystems.tireSmoke.push(smoke);
+    rubber.rotation.set(
+        Math.random() * Math.PI,
+        Math.random() * Math.PI,
+        Math.random() * Math.PI
+    );
+    rubber.angularVelocity = new THREE.Vector3(
+        (Math.random() - 0.5) * 10,
+        (Math.random() - 0.5) * 10,
+        (Math.random() - 0.5) * 10
+    );
+    scene.add(rubber);
+    particleSystems.rubber.push(rubber);
+}
+
+// Create exhaust flame particle
+function createExhaustParticle(position, velocity) {
+    const exhaustGeometry = new THREE.SphereGeometry(0.08, 6, 6);
+    const exhaustMaterial = new THREE.MeshBasicMaterial({
+        color: new THREE.Color().setHSL(0.08 + Math.random() * 0.05, 1, 0.6),
+        transparent: true,
+        opacity: 0.8
+    });
+    const exhaust = new THREE.Mesh(exhaustGeometry, exhaustMaterial);
+    exhaust.position.copy(position);
+    exhaust.life = 0.15;
+    exhaust.velocity = velocity.clone().multiplyScalar(-0.5);
+    exhaust.velocity.y += Math.random() * 0.5;
+    scene.add(exhaust);
+    particleSystems.exhaust.push(exhaust);
 }
 
 // Create spark particle
@@ -275,15 +525,22 @@ function createSparkParticle(position) {
     particleSystems.sparks.push(spark);
 }
 
-// Update particles
+// Update particles - Enhanced with all particle types
 function updateParticles(deltaTime) {
-    // Update tire smoke
+    // Update tire smoke with volumetric expansion
     for (let i = particleSystems.tireSmoke.length - 1; i >= 0; i--) {
         const smoke = particleSystems.tireSmoke[i];
         smoke.life -= deltaTime;
         smoke.position.add(smoke.velocity.clone().multiplyScalar(deltaTime));
-        smoke.scale.addScalar(deltaTime * 2); // expand
-        smoke.material.opacity = smoke.life * 0.6;
+        smoke.velocity.y *= 0.98; // Slow down rise
+        smoke.velocity.x *= 0.95; // Air resistance
+        smoke.velocity.z *= 0.95;
+
+        // Expand and fade
+        const lifeRatio = smoke.life / 2.0;
+        const scale = smoke.initialScale * (1 + (1 - lifeRatio) * 4);
+        smoke.scale.setScalar(scale);
+        smoke.material.opacity = lifeRatio * 0.4;
 
         if (smoke.life <= 0) {
             scene.remove(smoke);
@@ -293,19 +550,83 @@ function updateParticles(deltaTime) {
         }
     }
 
-    // Update sparks
+    // Update sparks with gravity and bounce
     for (let i = particleSystems.sparks.length - 1; i >= 0; i--) {
         const spark = particleSystems.sparks[i];
         spark.life -= deltaTime;
         spark.position.add(spark.velocity.clone().multiplyScalar(deltaTime));
-        spark.velocity.y -= 9.8 * deltaTime; // gravity
-        spark.material.opacity = spark.life / 0.3;
+        spark.velocity.y -= 15 * deltaTime; // gravity
 
-        if (spark.life <= 0 || spark.position.y < 0) {
+        // Bounce off ground
+        if (spark.position.y < 0.05 && spark.velocity.y < 0) {
+            spark.position.y = 0.05;
+            spark.velocity.y *= -0.3;
+            spark.velocity.x *= 0.7;
+            spark.velocity.z *= 0.7;
+        }
+
+        // Flicker effect
+        spark.material.opacity = (spark.life / 0.3) * (0.5 + Math.random() * 0.5);
+        spark.material.color.setHSL(0.08 + Math.random() * 0.03, 1, 0.5 + Math.random() * 0.3);
+
+        if (spark.life <= 0) {
             scene.remove(spark);
             spark.geometry.dispose();
             spark.material.dispose();
             particleSystems.sparks.splice(i, 1);
+        }
+    }
+
+    // Update rubber particles
+    for (let i = particleSystems.rubber.length - 1; i >= 0; i--) {
+        const rubber = particleSystems.rubber[i];
+        rubber.life -= deltaTime;
+        rubber.position.add(rubber.velocity.clone().multiplyScalar(deltaTime));
+        rubber.velocity.y -= 9.8 * deltaTime;
+
+        // Tumble
+        rubber.rotation.x += rubber.angularVelocity.x * deltaTime;
+        rubber.rotation.y += rubber.angularVelocity.y * deltaTime;
+        rubber.rotation.z += rubber.angularVelocity.z * deltaTime;
+
+        // Bounce and settle
+        if (rubber.position.y < 0.02) {
+            rubber.position.y = 0.02;
+            rubber.velocity.y *= -0.2;
+            rubber.velocity.x *= 0.8;
+            rubber.velocity.z *= 0.8;
+            rubber.angularVelocity.multiplyScalar(0.8);
+        }
+
+        rubber.material.opacity = Math.min(rubber.life / 2.0, 0.9);
+
+        if (rubber.life <= 0) {
+            scene.remove(rubber);
+            rubber.geometry.dispose();
+            rubber.material.dispose();
+            particleSystems.rubber.splice(i, 1);
+        }
+    }
+
+    // Update exhaust flames
+    for (let i = particleSystems.exhaust.length - 1; i >= 0; i--) {
+        const exhaust = particleSystems.exhaust[i];
+        exhaust.life -= deltaTime;
+        exhaust.position.add(exhaust.velocity.clone().multiplyScalar(deltaTime));
+
+        // Scale down as it fades
+        const scale = exhaust.life / 0.15;
+        exhaust.scale.setScalar(scale);
+        exhaust.material.opacity = scale;
+
+        // Color shift from yellow to red
+        exhaust.material.color.setHSL(0.05 + (1 - scale) * 0.05, 1, 0.5 + scale * 0.3);
+
+        if (exhaust.life <= 0) {
+            scene.remove(exhaust);
+            exhaust.geometry.dispose();
+            exhaust.material.dispose();
+            particleSystems.exhaust.splice(i, 1);
         }
     }
 }
@@ -1433,42 +1754,63 @@ function createPitLaneMarkers() {
 function createF1Car(color = 0xe10600, startPosition = null) {
     const car = new THREE.Group();
 
-    // Materials - Enhanced with chrome and reflective properties
-    const carbonMaterial = new THREE.MeshStandardMaterial({
+    // ULTRA-REALISTIC MATERIALS with MeshPhysicalMaterial for clearcoat
+    // Carbon fiber with realistic weave look
+    const carbonMaterial = new THREE.MeshPhysicalMaterial({
         color: 0x0a0a0a,
-        metalness: 1.0,
-        roughness: 0.05,
-        envMapIntensity: 1.5
-    });
-
-    const liveryMaterial = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.95,
-        roughness: 0.08,
-        envMapIntensity: 1.8,
-        emissive: color,
-        emissiveIntensity: 0.05
-    });
-
-    const whiteMaterial = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        metalness: 0.6,
-        roughness: 0.2,
-        envMapIntensity: 1.2
-    });
-
-    const wingMaterial = new THREE.MeshStandardMaterial({
-        color: 0x000000,
-        metalness: 1.0,
-        roughness: 0.08,
-        envMapIntensity: 1.5
-    });
-
-    const chromeMaterial = new THREE.MeshStandardMaterial({
-        color: 0xcccccc,
-        metalness: 1.0,
-        roughness: 0.02,
+        metalness: 0.1,
+        roughness: 0.3,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1,
+        reflectivity: 0.9,
         envMapIntensity: 2.0
+    });
+
+    // Glossy car paint with clearcoat (like real F1 cars)
+    const liveryMaterial = new THREE.MeshPhysicalMaterial({
+        color: color,
+        metalness: 0.4,
+        roughness: 0.15,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.03,
+        reflectivity: 1.0,
+        envMapIntensity: 2.5,
+        emissive: color,
+        emissiveIntensity: 0.02,
+        sheen: 0.5,
+        sheenRoughness: 0.2,
+        sheenColor: new THREE.Color(0xffffff)
+    });
+
+    // White sponsor areas
+    const whiteMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        metalness: 0.0,
+        roughness: 0.2,
+        clearcoat: 0.8,
+        clearcoatRoughness: 0.1,
+        envMapIntensity: 1.5
+    });
+
+    // Black wing elements (matte carbon)
+    const wingMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0x050505,
+        metalness: 0.0,
+        roughness: 0.4,
+        clearcoat: 0.5,
+        clearcoatRoughness: 0.2,
+        envMapIntensity: 1.5
+    });
+
+    // Mirror chrome finish
+    const chromeMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        metalness: 1.0,
+        roughness: 0.0,
+        clearcoat: 0.0,
+        reflectivity: 1.0,
+        envMapIntensity: 3.0,
+        ior: 2.5
     });
 
     // SLENDER MONOCOQUE (narrow F1 chassis - 0.8m wide, 4.5m long)
@@ -2324,6 +2666,23 @@ function animate(currentTime) {
         updatePitStop(deltaTime);
 
         updateHUD();
+
+        // Update motion blur based on speed
+        const speedNormalized = Math.min(gameState.velocity / 350, 1.0);
+        motionBlurPass.uniforms.velocityFactor.value = speedNormalized * 0.8;
+
+        // Calculate direction based on car rotation
+        const blurAngle = gameState.rotation + Math.PI / 2;
+        motionBlurPass.uniforms.direction.value.set(
+            Math.cos(blurAngle),
+            Math.sin(blurAngle) * 0.3
+        );
+
+        // Update film grain time
+        filmGrainPass.uniforms.time.value = currentTime * 0.001;
+
+        // Increase chromatic aberration at high speeds
+        chromaticPass.uniforms.amount.value = 0.001 + speedNormalized * 0.003;
     }
 
     // Render with post-processing effects
@@ -2759,17 +3118,26 @@ function updateCamera() {
         camera.position.lerp(targetPosition, lerpFactor);
         camera.lookAt(playerCar.mesh.position);
     } else {
-        // Cockpit view
-        const cockpitOffset = new THREE.Vector3(0, 1.3, 0.5);
+        // Cockpit view - Enhanced F1 driver's perspective
+        const cockpitOffset = new THREE.Vector3(0, 0.9, 0.2); // Lower, more realistic position
         cockpitOffset.applyQuaternion(playerCar.mesh.quaternion);
         const targetPosition = new THREE.Vector3().copy(playerCar.mesh.position).add(cockpitOffset);
 
-        camera.position.lerp(targetPosition, lerpFactor * 1.8);
+        camera.position.lerp(targetPosition, lerpFactor * 2.0); // Smoother tracking
+        camera.fov = 85; // Wider FOV for cockpit view
 
-        const lookTarget = new THREE.Vector3(0, 0, 15);
+        const lookTarget = new THREE.Vector3(0, 0.2, 20); // Look slightly down at track
         lookTarget.applyQuaternion(playerCar.mesh.quaternion);
         lookTarget.add(playerCar.mesh.position);
         camera.lookAt(lookTarget);
+    }
+
+    // Reset FOV for other camera modes
+    if (cameraMode !== 'cockpit' && camera.fov !== 75) {
+        camera.fov = 75;
+        camera.updateProjectionMatrix();
+    } else if (cameraMode === 'cockpit' && camera.fov !== 85) {
+        camera.updateProjectionMatrix();
     }
 }
 
@@ -3314,6 +3682,9 @@ window.startSimulation = function() {
     gameState.velocity = 0;
     gameState.position.set(230, 0.5, 3);
     gameState.rotation = 0;
+
+    // Create HDR environment map for realistic reflections
+    createProceduralEnvMap();
 
     createCircuit();
 
