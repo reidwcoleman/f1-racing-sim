@@ -7,6 +7,83 @@ import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+// GLTF Loader for Aston Martin car and race track
+const gltfLoader = new GLTFLoader();
+
+// Store loaded models
+let astonMartinCarModel = null;
+let raceTrackModel = null;
+let modelsLoaded = false;
+
+// Load GLTF assets function
+async function loadGLTFAssets() {
+    return new Promise((resolve, reject) => {
+        let loadedCount = 0;
+        const totalModels = 2;
+
+        // Load Aston Martin F1 car
+        gltfLoader.load(
+            'assets/aston_martin_car/Aston_Martin_formula_1_car.gltf',
+            (gltf) => {
+                astonMartinCarModel = gltf.scene;
+                // Scale the car to appropriate size for the game
+                astonMartinCarModel.scale.set(0.5, 0.5, 0.5);
+                // Enable shadows on all meshes
+                astonMartinCarModel.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                console.log('Aston Martin F1 car loaded successfully');
+                loadedCount++;
+                if (loadedCount === totalModels) {
+                    modelsLoaded = true;
+                    resolve();
+                }
+            },
+            (progress) => {
+                console.log('Loading Aston Martin car:', (progress.loaded / progress.total * 100).toFixed(1) + '%');
+            },
+            (error) => {
+                console.error('Error loading Aston Martin car:', error);
+                reject(error);
+            }
+        );
+
+        // Load race track environment
+        gltfLoader.load(
+            'assets/race_track/scene.gltf',
+            (gltf) => {
+                raceTrackModel = gltf.scene;
+                // Scale the track appropriately
+                raceTrackModel.scale.set(2, 2, 2);
+                // Enable shadows on all meshes
+                raceTrackModel.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                console.log('Race track loaded successfully');
+                loadedCount++;
+                if (loadedCount === totalModels) {
+                    modelsLoaded = true;
+                    resolve();
+                }
+            },
+            (progress) => {
+                console.log('Loading race track:', (progress.loaded / progress.total * 100).toFixed(1) + '%');
+            },
+            (error) => {
+                console.error('Error loading race track:', error);
+                reject(error);
+            }
+        );
+    });
+}
 
 // Career Mode State
 const careerState = {
@@ -840,8 +917,43 @@ function generateTrackPoints(layout) {
     return points;
 }
 
-// Create Monaco-inspired Circuit with full scenery
+// Create Racing Track from GLTF model
 function createCircuit() {
+    // Get current track layout for game logic (checkpoints)
+    const layoutId = careerState.currentCircuit || 'monaco';
+    const layout = trackLayouts[layoutId];
+    currentTrackPoints = generateTrackPoints(layout);
+
+    console.log(`Loading GLTF race track environment`);
+
+    // Use the loaded race track GLTF model
+    if (raceTrackModel) {
+        const trackClone = raceTrackModel.clone();
+        // Position the track at ground level
+        trackClone.position.set(0, 0, 0);
+        scene.add(trackClone);
+        console.log('Race track GLTF model added to scene');
+    } else {
+        // Fallback: create a simple ground plane if model not loaded
+        const fallbackGeometry = new THREE.PlaneGeometry(600, 600);
+        const fallbackMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2a2a2a,
+            roughness: 0.95,
+            metalness: 0.05
+        });
+        const fallbackTrack = new THREE.Mesh(fallbackGeometry, fallbackMaterial);
+        fallbackTrack.rotation.x = -Math.PI / 2;
+        fallbackTrack.receiveShadow = true;
+        scene.add(fallbackTrack);
+        console.warn('Race track model not loaded, using fallback ground plane');
+    }
+
+    // Checkpoints for lap detection (use layout-specific checkpoints - required for game logic)
+    gameState.checkpoints = layout.checkpoints.map(cp => ({ ...cp, passed: false }));
+}
+
+// Legacy procedural circuit creation (commented out - now using GLTF)
+function createCircuitLegacy() {
     // Get current track layout
     const layoutId = careerState.currentCircuit || 'monaco';
     const layout = trackLayouts[layoutId];
@@ -1750,8 +1862,56 @@ function createPitLaneMarkers() {
     scene.add(signPlane);
 }
 
-// Create Ultra-Realistic Slender F1 Car with Driver
+// Create Aston Martin F1 Car from GLTF model
 function createF1Car(color = 0xe10600, startPosition = null) {
+    const car = new THREE.Group();
+
+    // Use the loaded Aston Martin GLTF model
+    if (astonMartinCarModel) {
+        const carClone = astonMartinCarModel.clone();
+        // Rotate to face the correct direction (forward along Z-axis)
+        carClone.rotation.y = Math.PI;
+        car.add(carClone);
+        console.log('Using Aston Martin GLTF model for car');
+    } else {
+        // Fallback: create a simple box placeholder if model not loaded
+        const placeholder = new THREE.Mesh(
+            new THREE.BoxGeometry(2, 0.5, 4),
+            new THREE.MeshStandardMaterial({ color: color })
+        );
+        car.add(placeholder);
+        console.warn('Aston Martin model not loaded, using placeholder');
+    }
+
+    // Create empty wheels array for compatibility (GLTF model has its own wheels)
+    car.wheels = [];
+
+    // Create dummy wheel references for the animation system
+    for (let i = 0; i < 4; i++) {
+        const dummyWheel = new THREE.Object3D();
+        car.wheels.push(dummyWheel);
+    }
+
+    // Add exhaust light effect
+    const exhaustLight = new THREE.PointLight(0xff4400, 0.5, 3);
+    exhaustLight.position.set(0, 0.2, -2.0);
+    car.add(exhaustLight);
+    car.exhaustLight = exhaustLight;
+
+    scene.add(car);
+
+    // Set initial position
+    if (startPosition) {
+        car.position.copy(startPosition);
+    } else {
+        car.position.copy(gameState.position);
+    }
+
+    return { mesh: car, wheels: car.wheels };
+}
+
+// Legacy procedural car creation (commented out - now using GLTF)
+function createF1CarLegacy(color = 0xe10600, startPosition = null) {
     const car = new THREE.Group();
 
     // ULTRA-REALISTIC MATERIALS with MeshPhysicalMaterial for clearcoat
@@ -2164,7 +2324,7 @@ function createF1Car(color = 0xe10600, startPosition = null) {
     return { mesh: car, wheels: car.wheels };
 }
 
-const playerCar = createF1Car();
+let playerCar = createF1Car();
 
 // Create AI opponent cars
 function createAICars() {
@@ -3659,9 +3819,29 @@ function updateKERS(dt) {
 }
 
 // Start simulation
-window.startSimulation = function() {
+window.startSimulation = async function() {
     console.log('Starting simulation...');
-    document.getElementById('start-screen').style.display = 'none';
+
+    // Show loading message
+    const startScreen = document.getElementById('start-screen');
+    if (startScreen) {
+        startScreen.innerHTML = '<h1 style="color: white; font-size: 48px;">Loading Assets...</h1>';
+    }
+
+    // Load GLTF assets if not already loaded
+    if (!modelsLoaded) {
+        try {
+            await loadGLTFAssets();
+            console.log('All GLTF assets loaded successfully');
+        } catch (error) {
+            console.error('Failed to load GLTF assets:', error);
+        }
+    }
+
+    // Hide start screen after loading
+    if (startScreen) {
+        startScreen.style.display = 'none';
+    }
 
     // Reset race state
     gameState.running = true;
@@ -3687,6 +3867,14 @@ window.startSimulation = function() {
     createProceduralEnvMap();
 
     createCircuit();
+
+    // Recreate player car with loaded GLTF model
+    if (playerCar && playerCar.mesh) {
+        scene.remove(playerCar.mesh);
+    }
+    const newPlayerCar = createF1Car();
+    playerCar.mesh = newPlayerCar.mesh;
+    playerCar.wheels = newPlayerCar.wheels;
 
     // Get track radius from current layout
     const layoutId = careerState.currentCircuit || 'monaco';
