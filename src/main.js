@@ -2324,7 +2324,8 @@ function createF1CarLegacy(color = 0xe10600, startPosition = null) {
     return { mesh: car, wheels: car.wheels };
 }
 
-let playerCar = createF1Car();
+// Player car will be created after GLTF assets are loaded
+let playerCar = null;
 
 // Create AI opponent cars
 function createAICars() {
@@ -3868,13 +3869,11 @@ window.startSimulation = async function() {
 
     createCircuit();
 
-    // Recreate player car with loaded GLTF model
+    // Create player car with loaded GLTF model
     if (playerCar && playerCar.mesh) {
         scene.remove(playerCar.mesh);
     }
-    const newPlayerCar = createF1Car();
-    playerCar.mesh = newPlayerCar.mesh;
-    playerCar.wheels = newPlayerCar.wheels;
+    playerCar = createF1Car();
 
     // Get track radius from current layout
     const layoutId = careerState.currentCircuit || 'monaco';
