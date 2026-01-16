@@ -25,7 +25,7 @@ async function loadGLTFAssets() {
 
         // Load Aston Martin F1 car
         gltfLoader.load(
-            '/aston_martin_car/Aston_Martin_formula_1_car.gltf',
+            './aston_martin_car/Aston_Martin_formula_1_car.gltf',
             (gltf) => {
                 astonMartinCarModel = gltf.scene;
                 // Scale the car to appropriate size for the game
@@ -55,7 +55,7 @@ async function loadGLTFAssets() {
 
         // Load race track environment
         gltfLoader.load(
-            '/race_track/scene.gltf',
+            './race_track/scene.gltf',
             (gltf) => {
                 raceTrackModel = gltf.scene;
                 // Scale the track appropriately
