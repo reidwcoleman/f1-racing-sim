@@ -933,19 +933,6 @@ function createCircuit() {
         trackClone.position.set(0, 0, 0);
         scene.add(trackClone);
         console.log('Race track GLTF model added to scene');
-    } else {
-        // Fallback: create a simple ground plane if model not loaded
-        const fallbackGeometry = new THREE.PlaneGeometry(600, 600);
-        const fallbackMaterial = new THREE.MeshStandardMaterial({
-            color: 0x2a2a2a,
-            roughness: 0.95,
-            metalness: 0.05
-        });
-        const fallbackTrack = new THREE.Mesh(fallbackGeometry, fallbackMaterial);
-        fallbackTrack.rotation.x = -Math.PI / 2;
-        fallbackTrack.receiveShadow = true;
-        scene.add(fallbackTrack);
-        console.warn('Race track model not loaded, using fallback ground plane');
     }
 
     // Checkpoints for lap detection (use layout-specific checkpoints - required for game logic)
@@ -1873,14 +1860,6 @@ function createF1Car(color = 0xe10600, startPosition = null) {
         carClone.rotation.y = Math.PI;
         car.add(carClone);
         console.log('Using Aston Martin GLTF model for car');
-    } else {
-        // Fallback: create a simple box placeholder if model not loaded
-        const placeholder = new THREE.Mesh(
-            new THREE.BoxGeometry(2, 0.5, 4),
-            new THREE.MeshStandardMaterial({ color: color })
-        );
-        car.add(placeholder);
-        console.warn('Aston Martin model not loaded, using placeholder');
     }
 
     // Create empty wheels array for compatibility (GLTF model has its own wheels)
