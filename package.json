@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build && cp dist/index.html . && cp -r dist/assets .",
     "preview": "vite preview",
-    "deploy": "npm run build && git add index.html assets dist && git commit -m 'Deploy build' && git push"
+    "deploy": "npm run build && git add index.html assets dist aston_martin_car race_track && git commit -m 'Deploy build' && git push"
   },
   "keywords": [
     "f1",
