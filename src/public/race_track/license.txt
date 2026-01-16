@@ -1,0 +1,11 @@
+Model Information:
+* title:	Race Game Environment
+* source:	https://sketchfab.com/3d-models/race-game-environment-31da91ea095d401ba78c603bdafae58c
+* author:	Pranav 3d (https://sketchfab.com/pranavsketchup2010)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Race Game Environment" (https://sketchfab.com/3d-models/race-game-environment-31da91ea095d401ba78c603bdafae58c) by Pranav 3d (https://sketchfab.com/pranavsketchup2010) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
